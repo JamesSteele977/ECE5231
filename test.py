@@ -1,18 +1,13 @@
 import numpy as np
+import copy
 
-def generate_nd_grid(domains, sampling_rates):
-    # Create slice objects for each dimension based on the domains and sampling rates
-    slice_objects = [slice(start, stop, 1j * rate) for (start, stop), rate in zip(domains, sampling_rates)]
+def get_nd_input(domains, 
+                 shape: list):
+    
+    xy = np.mgrid[0:1:3.1j, 0:1:3.1j].reshape(2,-1).T
 
-    # Use np.ogrid to generate the grid; this uses broadcasting and doesn't actually create a full n-dimensional grid in memory
-    grid_arrays = np.ogrid[slice_objects]
+test = get_nd_input(domains=[(0, 10),
+                             (0, 10)],
+                    shape=[11, 11])
 
-    # Stack these arrays along the last axis to get the final grid
-    grid = np.stack(grid_arrays, axis=-1)
-
-    return grid
-
-
-domain = generate_nd_grid(np.array([[0, 10], [0, 10]]), np.array([11, 11]))
-
-print(domain)
+print(test)

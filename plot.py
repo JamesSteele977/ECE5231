@@ -21,6 +21,6 @@ Klv = lambda w, h, L: E((w*(h**3))/(4*L^3))
 Cax = lambda w, h, D, F, L: C(w, h, D, F, Kax(w, h, L))
 Clv = lambda w, h, D, F, L: C(w, h, D, F, Klv(w, h, L))
 
-test_paradigms = np.
+
 
 test_C = np.vectorize(Cax)(test_paradigms)
