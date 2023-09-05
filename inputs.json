@@ -1,0 +1,13 @@
+{
+    "sensor_type": "capacitive_pressure_axial",
+    "material": "si",
+    "optim": "balanced",
+
+    "specs": {
+        "min_sensitivity": 1,
+        "fsi": [0, 1],
+        "max_error_tolerance": 1,
+        "maxmean_error_tolerance": 1,
+        "max_footprint": 1
+    }
+}
