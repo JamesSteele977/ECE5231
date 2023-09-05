@@ -1,0 +1,12 @@
+{
+    "min_dim": 1e-6,
+    "ep_not": 8.85418782e-12,
+
+    "sample_depth": 10,
+    "iter_depth": 100,
+
+    "si": {
+        "youngs_mod": 157e9,
+        "yield_str": 7e9
+    }
+}

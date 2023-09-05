@@ -38,10 +38,10 @@ test_C = np.vectorize(Clv)(*vec)
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 
-thresh = 0.5*np.max(test_C)
+thresh = np.max(test_C)
 
-test_C[test_C < thresh] = 0
+test_C[test_C < thresh] = np.nan
 
-obj = ax.scatter(vec[0]*vec[1], vec[2], vec[-1], c=test_C, cmap='viridis')
+obj = ax.scatter(vec[0]*vec[1], vec[2], vec[-1], c=test_C, cmap='cviridis')
 plt.colorbar(obj)
 plt.show()
