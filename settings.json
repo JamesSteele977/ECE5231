@@ -1,14 +1,12 @@
 {
-    "fab_constraints": {
-        "min_dim": 1e-6
-    },
+    "min_dim": 1e-6,
+    "ep_not": 8.85418782e-12,
 
-    "constants": {
-        "epsilon_not": 8.85418782e-12,
-        "materials": {
-            "si": {
-                "youngs_mod": 157e9
-            }
-        }
+    "sample_depth": 10,
+    "iter_depth": 100,
+
+    "si": {
+        "youngs_mod": 157e9,
+        "yield_str": 7e9
     }
 }
