@@ -10,10 +10,5 @@
                 "youngs_mod": 157e9
             }
         }
-    },
-
-    "fitting": {
-        "iter_depth": 1,
-        "sample_depth": 10
     }
 }

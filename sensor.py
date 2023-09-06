@@ -1,186 +1,152 @@
 import numpy as np
 import tensorflow as tf
+from tqdm import tqdm
 
-""" TIER 1 """
-class Sensor():
+""" GENERAL SENSOR OPTIMIZATION MODEL """
+class Sensor(tf.Module):
     def __init__(self,
-                 fab_constraints: dict,
-                 constants: dict,
-                 material: str,
-                 specs: dict,
-                 optim_config: dict) -> None:
-        self.min_dim = fab_constraints["min_dim"]
-        self.epsilon_not = constants["epsilon_not"]
-        self.material = material
-        self.material_specs = constants["materials"][material]
-        self.specs = specs
-        self.optim_config = optim_config
+                 settings: dict,
+                 inputs: dict,
+                 subclassed_sensor: object) -> None:
+        super().__init__()
+        self.settings = settings
+        self.inputs = inputs
         self.optimizer = tf.optimizers.Adam(
-            learning_rate=optim_config["learning_rate"]
+            learning_rate=inputs["optim_config"]["learning_rate"]
         )
+        self.subclassed_sensor = subclassed_sensor(self.inputs["init_vals"])
         pass
-    
-    def _get_mesh(self,
-                  doms: list) -> np.ndarray:
-        mgrid_config = [np.s_[dom[0]:dom[1]:self.sample_depth*1j] for dom in doms] 
-        return np.mgrid[mgrid_config].reshape(len(doms),-1).T
 
-    def _split_mesh(self,
-                    mesh: np.ndarray) -> list:
-        return [mesh[...,i] for i in range(mesh.shape[-1])]
-
-    def _fit(self, init_doms):
-        w_ = tf.Variable(initial_value=1.0, 
-                    trainable=True, 
-                    dtype=tf.float32)
-        h_ = tf.Variable(initial_value=1.0, 
-                            trainable=True, 
-                            dtype=tf.float32)
-        l_ = tf.Variable(initial_value=1.0, 
-                            trainable=True, 
-                            dtype=tf.float32)
-        for epoch in range(self.optim_config["epochs"]):
-            loss = self.train_step()
-
-    @tf.function
-    def train_step(self, w_, h_, l_):
+    # @tf.function
+    def _train_step(self):
         with tf.GradientTape() as tape:
-            tape.watch([w_, h_, l_])
+            tape.watch(self.trainable_variables)
             
-            # w_ = tf.maximum(w, 1.0)
-            # h_ = tf.maximum(h, 1.0)
-            # l_ = tf.maximum(l, 1.0)
-            
-            I_values = tf.linspace(self.specs["fsi"][0], 
-                                   self.specs["fsi"][1],
-                                   self.sample_depth)
+            I_values = tf.linspace(self.inputs["specs"]["fsi"][0], 
+                                   self.inputs["specs"]["fsi"][1],
+                                   self.inputs["optim_config"]["sample_depth"])
 
-            sensor_O = self.I_values
-            avg_dO_dI = tf.reduce_mean(tf.gradients(sensor_O, I_values))
+            sensor_O = self.subclassed_sensor._get_output(I_values,
+                                                          *self.trainable_variables,
+                                                          self.settings["constants"],
+                                                          self.inputs["material"])
+
+            avg_dO_dI = (sensor_O[-1]-sensor_O[0])/(I_values[-1]-I_values[0])
             
-            footprint = w_ * l_
+            footprint = self.subclassed_sensor._get_footprint(*self.trainable_variables)
+            footprint_penalty = tf.nn.relu(self.inputs["specs"]["max_footprint"]-footprint, 0)
         
-            linear_O = avg_dO_dI * I_values
-            error = tf.math.abs(sensor_O - linear_O)
-            linearity = tf.reduce_sum(error)
+            error = tf.math.abs(sensor_O - (avg_dO_dI * I_values))
+            nonlinearity = tf.reduce_sum(error)/(self.inputs["specs"]["fsi"][1]-self.inputs["specs"]["fsi"][0])
             
-            loss = -self.optim["alpha"]*avg_dO_dI\
-                +self.optim["beta"]*footprint\
-                -self.optim["gamma"]*linearity
-
-            loss = tf.reduce_mean(tf.where(error > E, tf.float32.max, loss))
+            loss = -self.inputs["optim_config"]["alpha"]*avg_dO_dI\
+                +self.inputs["optim_config"]["beta"]*footprint\
+                +self.inputs["optim_config"]["gamma"]*nonlinearity
             
-        grads = tape.gradient(loss, [w_, h_, l_])
-        optimizer.apply_gradients(zip(grads, [w_, h_, l_]))
-        return loss, w_, h_, l_
+            loss = tf.reduce_mean(tf.where(error > self.inputs["specs"]["max_error_tolerance"],
+                                           tf.float32.max, 
+                                           loss))
+            
+        grads = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+        return loss, footprint, nonlinearity, avg_dO_dI
 
-    epochs = 10000
-
-    # Training Loop
-    losses = np.empty((epochs))
-    ws = np.empty((epochs))
-    hs = np.empty((epochs))
-    ls = np.empty((epochs))
-    for epoch in range(epochs):
-        loss, w, h, l = train_step()
-        # print(f"Epoch {epoch}, Loss: {loss.numpy()}, Design: {w.numpy(), h.numpy(), l.numpy()}")
-        losses[epoch] = loss
-        ws[epoch] = w
-        hs[epoch] = h
-        ls[epoch] = l
-
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(1, 2)
-    plt.yscale('log')
-    ax[0].plot(losses)
-    plt.yscale('linear')
-    ax[0].legend(["loss"])
-    ax[1].plot(ws)
-    ax[1].plot(hs)
-    ax[1].plot(ls)
-    ax[1].legend(["width", "height", "length"])
-    plt.show()
-
-""" TIER 2 """
-class CapacitivePressureSensor(Sensor):
-    def __init__(self,
-                 fab_constraints: dict,
-                 constants: dict,
-                 material: str,
-                 fitting: dict,
-                 specs: dict,
-                 optim: dict) -> None:
-        super().__init__(fab_constraints,
-                         constants,
-                         material, 
-                         fitting,
-                         optim,
-                         specs)
-        
-    def _get_capacitance(self, 
-                         w: np.float64, 
-                         h: np.float64, 
-                         D: np.float64, 
-                         F: np.float64, 
-                         k: np.float64) -> np.float64:
-        return self.epsilon_not*((w*h)/(D-(F/k)))
+    def _fit(self):
+        for name, val in self.subclassed_sensor.__dict__.items():
+            self.__setattr__(name, tf.Variable(initial_value=val,
+                                               trainable=True,
+                                               dtype=tf.float32))
+        losses = np.empty((self.inputs["optim_config"]["epochs"]), dtype=np.float32)
+        params = np.empty((self.inputs["optim_config"]["epochs"], len(self.trainable_variables)))
+        footprints = np.empty((self.inputs["optim_config"]["epochs"]), dtype=np.float32)
+        nonlinearities = np.empty((self.inputs["optim_config"]["epochs"]), dtype=np.float32)
+        sensitivities = np.empty((self.inputs["optim_config"]["epochs"]), dtype=np.float32)
+        for epoch in tqdm(range(self.inputs["optim_config"]["epochs"]), desc="Fitting... "):
+            losses[epoch], footprints[epoch], nonlinearities[epoch], sensitivities[epoch] = self._train_step()
+            params[epoch, :] = self.trainable_variables
+        return losses, params, footprints, nonlinearities, sensitivities
     
-""" TIER 3 """
+""" SENSOR SUPERCLASSES """
+class CapacitivePressureSensor():
+    def __init__(self, init_vals: tuple) -> None:
+        self.w = tf.Variable(initial_value=init_vals[0],
+                             trainable=True,
+                             dtype=np.float32)
+        self.h = tf.Variable(initial_value=init_vals[1],
+                             trainable=True,
+                             dtype=np.float32)
+        self.z = tf.Variable(initial_value=init_vals[2],
+                             trainable=True,
+                             dtype=tf.float32)
+        self.L = tf.Variable(initial_value=init_vals[3],
+                             trainable=True,
+                             dtype=tf.float32)
+    
+    def _get_footprint(self, *args):
+        return args[0]*args[3]
+
+    def _get_capacitance(self, 
+                         w: tf.float32, 
+                         h: tf.float32, 
+                         z: tf.float32, 
+                         F: tf.float32, 
+                         k: tf.float32,
+                         constants: dict,
+                         *args,
+                         **kwargs) -> tf.float32:
+        return constants["epsilon_not"]*((w*h)/(z-(F/k)))
+    
+""" OPERATING LEVEL SENSOR SUBCLASSES """
 class AxialCapacitivePressureSensor(CapacitivePressureSensor):
-    def __init__(self, 
-                 fab_constraints: dict, 
-                 constants: dict,
-                 material: str, 
-                 fitting: dict,
-                 optim: dict,
-                 specs: dict) -> None:
-        super().__init__(fab_constraints, 
-                         constants,
-                         material,
-                         fitting,
-                         specs)
-        
-    def _get_cantilever_k(self, 
-                          w: np.float64, 
-                          h: np.float64, 
-                          L: np.float64):
-        return self.material_sepcs["youngs_mod"]*((w*(h**3))/(4*(L**3)))
+    def __init__(self, init_vals: tuple) -> None:
+        super().__init__(init_vals)
+        pass
+
+    def _get_axial_k(self, 
+                     w: tf.float32, 
+                     h: tf.float32, 
+                     L: tf.float32,
+                     constants: dict,
+                     material: str,
+                     *wargs,
+                     **kwargs) -> tf.float32:
+        return constants["materials"][material]["youngs_mod"]*((w*h)/L)
     
     def _get_output(self, 
-                    w: np.float64, 
-                    h: np.float64, 
-                    D: np.float64, 
-                    F: np.float64, 
-                    L: np.float64):
-        return self._get_capacitance(w, h, D, F, self._get_axial_k(w, h, L))
+                    F: tf.float32, 
+                    w: tf.float32, 
+                    h: tf.float32, 
+                    z: tf.float32, 
+                    L: tf.float32,
+                    constants: dict,
+                    material: str,
+                    *args,
+                    **kwargs) -> tf.float32:
+        return self._get_capacitance(w, h, z, F, self._get_axial_k(w, h, L, constants, material), constants)
         
 class CatileverCapacitivePressureSensor(CapacitivePressureSensor):
-    def __init__(self, 
-                 fab_constraints: dict, 
-                 constants: dict, 
-                 material: str,
-                 fitting: dict,
-                 optim: dict,
-                 specs: dict) -> None:
-        super().__init__(self,
-                         fab_constraints,
-                         constants,
-                         material,
-                         fitting,
-                         optim,
-                         specs)
+    def __init__(self, init_vals: tuple) -> None:
+        super().__init__(init_vals)
+        pass
     
-    def _get_axial_k(self, 
-                     w: np.float64, 
-                     h: np.float64, 
-                     L: np.float64):
-        return self.material_specs["youngs_mod"]*((w*h)/L)
+    def _get_cantilever_k(self, 
+                          w: tf.float32, 
+                          h: tf.float32, 
+                          L: tf.float32,
+                          constants: dict,
+                          material: str,
+                          *args,
+                          **kwargs) -> tf.float32:
+        return constants["materials"][material]["youngs_mod"]*((w*(h**3))/(4*(L**3)))
     
     def _get_output(self, 
-                    w: np.float64, 
-                    h: np.float64, 
-                    D: np.float64, 
-                    F: np.float64, 
-                    L: np.float64):
-        return self._get_capacitance(w, h, D, F, self._get_cantilever_k(w, h, L))
+                    F: tf.float32, 
+                    w: tf.float32, 
+                    h: tf.float32, 
+                    z: tf.float32,  
+                    L: tf.float32,
+                    constants: dict,
+                    material: str,
+                    *args,
+                    **kwargs) -> tf.float32:
+        return self._get_capacitance(w, h, z, F, self._get_cantilever_k(w, h, L, constants, material), constants)
