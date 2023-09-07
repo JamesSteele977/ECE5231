@@ -25,11 +25,13 @@ sensor = Sensor(settings=inputs["settings"],
 
 losses, params, footprints, nonlinearities, sensitivities = sensor._fit()
 
-print(f"""OPTIMIZED PARAMS:
+print(f"""
+OPTIMIZED PARAMS:
 Width: {params[-1,0]*inputs["unit_norm"]}
 Height: {params[-1,1]*inputs["unit_norm"]}
 Z Dist: {params[-1,2]*inputs["unit_norm"]}
-Length: {params[-1,3]*inputs["unit_norm"]}""")\
+Length: {params[-1,3]*inputs["unit_norm"]}
+""")
 
 def normalize(X):
     return (X-np.min(X))/(np.ptp(X))

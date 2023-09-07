@@ -46,8 +46,8 @@ class Sensor(tf.Module):
 
     def _get_loss(self) -> tf.float32:
         I_values = tf.linspace(self.inputs["specs"]["fsi"][0], 
-                                self.inputs["specs"]["fsi"][1],
-                                self.inputs["optim_config"]["sample_depth"])
+                               self.inputs["specs"]["fsi"][1],
+                               self.inputs["optim_config"]["sample_depth"])
         sensor_O = self.subclassed_sensor._get_output(I_values,
                                                         *self.trainable_variables,
                                                         self.settings["constants"],
@@ -75,7 +75,6 @@ class Sensor(tf.Module):
 
     # @tf.function
     def _train_step(self):
-        pdb.set_trace()
         with tf.GradientTape() as tape:
             tape.watch(self.trainable_variables)
             
