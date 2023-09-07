@@ -9,14 +9,14 @@ class CapacitivePressureSensor():
         return args[0]*args[3]
 
     def _get_capacitance(self, 
-                         w: tf.float32, 
-                         h: tf.float32, 
-                         z: tf.float32, 
-                         F: tf.float32, 
-                         k: tf.float32,
+                         w: tf.float64, 
+                         h: tf.float64, 
+                         z: tf.float64, 
+                         F: tf.float64, 
+                         k: tf.float64,
                          constants: dict,
                          *args,
-                         **kwargs) -> tf.float32:
+                         **kwargs) -> tf.float64:
         return constants["epsilon_not"]*((w*h)/(z-(F/k)))
     
 """ OPERATING LEVEL SENSOR SUBCLASSES """
@@ -26,25 +26,25 @@ class AxialCapacitivePressureSensor(CapacitivePressureSensor):
         pass
 
     def _get_axial_k(self, 
-                     w: tf.float32, 
-                     h: tf.float32, 
-                     L: tf.float32,
+                     w: tf.float64, 
+                     h: tf.float64, 
+                     L: tf.float64,
                      constants: dict,
                      material: str,
                      *wargs,
-                     **kwargs) -> tf.float32:
+                     **kwargs) -> tf.float64:
         return constants["materials"][material]["youngs_mod"]*((w*h)/L)
     
     def _get_output(self, 
-                    F: tf.float32, 
-                    w: tf.float32, 
-                    h: tf.float32, 
-                    z: tf.float32, 
-                    L: tf.float32,
+                    F: tf.float64, 
+                    w: tf.float64, 
+                    h: tf.float64, 
+                    z: tf.float64, 
+                    L: tf.float64,
                     constants: dict,
                     material: str,
                     *args,
-                    **kwargs) -> tf.float32:
+                    **kwargs) -> tf.float64:
         return self._get_capacitance(w, h, z, F, self._get_axial_k(w, h, L, constants, material), constants)
         
 class CatileverCapacitivePressureSensor(CapacitivePressureSensor):
@@ -53,23 +53,23 @@ class CatileverCapacitivePressureSensor(CapacitivePressureSensor):
         pass
     
     def _get_cantilever_k(self, 
-                          w: tf.float32, 
-                          h: tf.float32, 
-                          L: tf.float32,
+                          w: tf.float64, 
+                          h: tf.float64, 
+                          L: tf.float64,
                           constants: dict,
                           material: str,
                           *args,
-                          **kwargs) -> tf.float32:
+                          **kwargs) -> tf.float64:
         return constants["materials"][material]["youngs_mod"]*((w*(h**3))/(4*(L**3)))
     
     def _get_output(self, 
-                    F: tf.float32, 
-                    w: tf.float32, 
-                    h: tf.float32, 
-                    z: tf.float32,  
-                    L: tf.float32,
+                    F: tf.float64, 
+                    w: tf.float64, 
+                    h: tf.float64, 
+                    z: tf.float64,  
+                    L: tf.float64,
                     constants: dict,
                     material: str,
                     *args,
-                    **kwargs) -> tf.float32:
+                    **kwargs) -> tf.float64:
         return self._get_capacitance(w, h, z, F, self._get_cantilever_k(w, h, L, constants, material), constants)

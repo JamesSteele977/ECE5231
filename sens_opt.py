@@ -34,17 +34,17 @@ class Sensor(tf.Module):
 
     def _get_dO_dI(self,
                    sensor_O: tf.Tensor,
-                   I_values: tf.Tensor) -> tf.float32:
+                   I_values: tf.Tensor) -> tf.float64:
         return (sensor_O[-1]-sensor_O[0])/(I_values[-1]-I_values[0])
 
     def _get_nonlinearity(self, 
                           I_values: tf.Tensor, 
                           sensor_O: tf.Tensor, 
-                          avg_dO_dI: tf.float32) -> tf.float32:
+                          avg_dO_dI: tf.float64) -> tf.float64:
         error = tf.math.abs(sensor_O - (avg_dO_dI * I_values))
         return tf.reduce_sum(error)/(self.inputs["specs"]["fsi"][1]-self.inputs["specs"]["fsi"][0])
 
-    def _get_loss(self) -> tf.float32:
+    def _get_loss(self) -> tf.float64:
         I_values = tf.linspace(self.inputs["specs"]["fsi"][0], 
                                self.inputs["specs"]["fsi"][1],
                                self.inputs["optim_config"]["sample_depth"])
@@ -89,7 +89,7 @@ class Sensor(tf.Module):
         for name, val in self.subclassed_sensor.__dict__.items():
             self.__setattr__(name, tf.Variable(initial_value=val,
                                                trainable=True,
-                                               dtype=tf.float32))
+                                               dtype=tf.float64))
         epochs = self.inputs["optim_config"]["epochs"]
         losses, footprints, nonlinearities, sensitivities =\
             tuple([np.empty((epochs), dtype=np.float32) for i in range(4)])
