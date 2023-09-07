@@ -1,8 +1,4 @@
 {
-    "fab_constraints": {
-        "min_dim": 1e-6
-    },
-
     "constants": {
         "epsilon_not": 8.85418782e-12,
         "materials": {

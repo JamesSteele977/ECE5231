@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sensor import *
+from sens_opt import *
+from sens_lib import *
 import json, sys
 
 subclassing_dict = {
@@ -37,8 +38,10 @@ def normalize(X):
     return (X-np.min(X))/(np.ptp(X))
 
 fig, ax = plt.subplots(1, 2)
+plt.yscale('log')
 ax[0].plot(losses)
 plt.legend(["loss"])
+plt.yscale('log')
 for parameter in range(params.shape[-1]):
     ax[1].plot(params[:,parameter])
 ax[1].plot(normalize(footprints)*np.max(params), 'r--')
