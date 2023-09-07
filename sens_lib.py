@@ -3,18 +3,7 @@ import tensorflow as tf
 """ SENSOR SUPERCLASSES """
 class CapacitivePressureSensor():
     def __init__(self, init_vals: tuple) -> None:
-        self.w = tf.Variable(initial_value=init_vals[0],
-                             trainable=True,
-                             dtype=tf.float32)
-        self.h = tf.Variable(initial_value=init_vals[1],
-                             trainable=True,
-                             dtype=tf.float32)
-        self.z = tf.Variable(initial_value=init_vals[2],
-                             trainable=True,
-                             dtype=tf.float32)
-        self.L = tf.Variable(initial_value=init_vals[3],
-                             trainable=True,
-                             dtype=tf.float32)
+        self.w, self.h, self.z, self.L = init_vals
     
     def _get_footprint(self, *args):
         return args[0]*args[3]
