@@ -1,9 +1,9 @@
 {
-    "sensor_type": "capacitive_pressure_axial",
+    "sensor_type": "capacitive_pressure_cantilever",
     "material": "si",
 
     "optim_config": {
-        "alpha": 1.0,
+        "alpha": 100000.0,
         "beta": 1.0,
         "gamma": 1.0,
 
