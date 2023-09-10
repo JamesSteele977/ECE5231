@@ -16,6 +16,9 @@ class Sensor(tf.Module):
         self.optimizer = tf.optimizers.Adam(
             learning_rate=inputs["optim_config"]["learning_rate"]
         )
+        self.alpha = self.inputs["optim_config"]["init_alpha"]
+        self.beta = self.inputs["optim_config"]["init_beta"]
+        self.gamma = self.inputs["optim_config"]["init_gamma"]
         if self.inputs["optim_config"]["autobound"]:
             self.param_bounds = self._get_autobounds()
         else:
@@ -44,14 +47,23 @@ class Sensor(tf.Module):
         error = tf.math.abs(sensor_O - (avg_dO_dI * I_values))
         return tf.reduce_sum(error)/(self.inputs["specs"]["fsi"][1]-self.inputs["specs"]["fsi"][0])
 
+    def _update_loss_weights(self, 
+                             avg_dO_dI, 
+                             nonlinearity, 
+                             footprint):
+        pass
+
     def _get_loss(self) -> tf.float64:
-        I_values = tf.linspace(self.inputs["specs"]["fsi"][0], 
-                               self.inputs["specs"]["fsi"][1],
-                               self.inputs["optim_config"]["sample_depth"])
+        I_values = tf.cast(
+            tf.linspace(self.inputs["specs"]["fsi"][0], 
+                        self.inputs["specs"]["fsi"][1],
+                        self.inputs["optim_config"]["sample_depth"]),
+            dtype=tf.float64
+        )
         sensor_O = self.subclassed_sensor._get_output(I_values,
-                                                        *self.trainable_variables,
-                                                        self.settings["constants"],
-                                                        self.inputs["material"])
+                                                    *self.trainable_variables,
+                                                    self.settings["constants"],
+                                                    self.inputs["material"])
 
         avg_dO_dI = self._get_dO_dI(sensor_O, I_values)
         nonlinearity = self._get_nonlinearity(I_values, sensor_O, avg_dO_dI)
@@ -63,15 +75,12 @@ class Sensor(tf.Module):
         
         return loss, footprint, nonlinearity, avg_dO_dI
 
-    def _bounds_enforcement(self, 
-                            gradients: tuple) -> tuple:
-        new_grad = []
-        for i, grad in enumerate(gradients):
-            bound = self.param_bounds[i]
-            param = self.trainable_variables[i]
-            limit = np.min((param-bound[0], bound[1]-param))
-            new_grad.append((limit+(limit/tf.math.sigmoid(grad)))/self.optimizer.learning_rate)
-        return tuple(new_grad)
+    def _bounds_enforcement(self) -> None:
+        for i, bound in enumerate(self.param_bounds):
+            self.trainable_variables[i].assign(tf.clip_by_value(self.trainable_variables[i],
+                                                                bound[0],
+                                                                bound[1]))
+        pass
 
     # @tf.function
     def _train_step(self):
@@ -81,8 +90,8 @@ class Sensor(tf.Module):
             loss, footprint, nonlinearity, avg_dO_dI = self._get_loss()
 
         grads = tape.gradient(loss, self.trainable_variables)
-        grads = self._bounds_enforcement(grads)
         self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+        self._bounds_enforcement()
         return loss, footprint, nonlinearity, avg_dO_dI
 
     def _fit(self):
