@@ -73,3 +73,25 @@ class CatileverCapacitivePressureSensor(CapacitivePressureSensor):
                     *args,
                     **kwargs) -> tf.float64:
         return self._get_capacitance(w, h, z, F, self._get_cantilever_k(w, h, L, constants, material), constants)
+
+class TestSensor():
+    def __init__(self, init_vals: tuple) -> None:
+        self.x, self.y = init_vals
+        pass
+
+    def _get_footprint(self,
+                       x: tf.float64,
+                       *args,
+                       **kwargs):
+        return x
+
+    def _get_output(self, 
+                    I: tf.float64,
+                    x: tf.float64,
+                    y: tf.float64,
+                    *args,
+                    **kwargs) -> tf.float64:
+        return (x*I)+y
+
+
+

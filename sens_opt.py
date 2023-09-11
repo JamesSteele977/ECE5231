@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 from sens_lib import *
-import pdb
 
 """ GENERAL SENSOR OPTIMIZATION MODEL """
 class Sensor(tf.Module):
@@ -16,9 +15,8 @@ class Sensor(tf.Module):
         self.optimizer = tf.optimizers.Adam(
             learning_rate=inputs["optim_config"]["learning_rate"]
         )
-        self.alpha = self.inputs["optim_config"]["init_alpha"]
-        self.beta = self.inputs["optim_config"]["init_beta"]
-        self.gamma = self.inputs["optim_config"]["init_gamma"]
+        self.optim_weights = np.array([1,1,1], dtype=np.float64)
+        self.optim_weights = tf.nn.softmax(self.optim_weights).numpy()
         if self.inputs["optim_config"]["autobound"]:
             self.param_bounds = self._get_autobounds()
         else:
@@ -27,12 +25,6 @@ class Sensor(tf.Module):
             self.subclassed_sensor = subclassed_sensor(self._get_autoinitvals())
         else:
             self.subclassed_sensor = subclassed_sensor(self.inputs["manual_init_vals"])
-        pass
-
-    def _get_autobounds(self) -> list:
-        pass
-
-    def _get_autoinitvals(self) -> list:
         pass
 
     def _get_dO_dI(self,
@@ -44,13 +36,26 @@ class Sensor(tf.Module):
                           I_values: tf.Tensor, 
                           sensor_O: tf.Tensor, 
                           avg_dO_dI: tf.float64) -> tf.float64:
-        error = tf.math.abs(sensor_O - (avg_dO_dI * I_values))
+        error = tf.math.abs(sensor_O-(avg_dO_dI * (I_values-I_values[0]) + sensor_O[0]))
         return tf.reduce_sum(error)/(self.inputs["specs"]["fsi"][1]-self.inputs["specs"]["fsi"][0])
 
     def _update_loss_weights(self, 
-                             avg_dO_dI, 
-                             nonlinearity, 
-                             footprint):
+                             footprint,
+                             nonlinearity,
+                             avg_dO_dI):
+        if footprint > self.inputs["specs"]["max_footprint"]:
+            if self.footprint-footprint > 0:
+                self.optim_weights[0] *= self.inputs["optim_config"]["secondary_lr"]
+        if nonlinearity > self.inputs["specs"]["max_nonlinearity"]:
+            if self.nonlinearity-nonlinearity > 0:
+                self.optim_weights[1] *= self.inputs["optim_config"]["secondary_lr"]
+        if avg_dO_dI < self.inputs["specs"]["min_sensitivity"]:
+            if self.avg_dO_dI-avg_dO_dI < 0:
+                self.optim_weights[2] *= self.inputs["optim_config"]["secondary_lr"]
+        self.optim_weights = tf.nn.softmax(self.optim_weights).numpy()
+        self.footprint = footprint
+        self.nonlinearity = nonlinearity
+        self.avg_dO_dI = avg_dO_dI
         pass
 
     def _get_loss(self) -> tf.float64:
@@ -69,9 +74,9 @@ class Sensor(tf.Module):
         nonlinearity = self._get_nonlinearity(I_values, sensor_O, avg_dO_dI)
         footprint = self.subclassed_sensor._get_footprint(*self.trainable_variables)
         
-        loss = -self.inputs["optim_config"]["alpha"]*avg_dO_dI\
-            +self.inputs["optim_config"]["beta"]*footprint\
-            +self.inputs["optim_config"]["gamma"]*nonlinearity
+        loss = self.optim_weights[0]*footprint\
+               +self.optim_weights[1]*nonlinearity\
+               -self.optim_weights[2]*avg_dO_dI\
         
         return loss, footprint, nonlinearity, avg_dO_dI
 
@@ -92,6 +97,7 @@ class Sensor(tf.Module):
         grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
         self._bounds_enforcement()
+        self._update_loss_weights(footprint, nonlinearity, avg_dO_dI)
         return loss, footprint, nonlinearity, avg_dO_dI
 
     def _fit(self):
@@ -103,6 +109,7 @@ class Sensor(tf.Module):
         losses, footprints, nonlinearities, sensitivities =\
             tuple([np.empty((epochs), dtype=np.float32) for i in range(4)])
         params = np.empty((epochs, len(self.trainable_variables)))
+        self.loss, self.footprint, self.nonlinearity, self.avg_dO_dI = self._get_loss()
         for epoch in tqdm(range(epochs), desc="Fitting... "):
             losses[epoch], footprints[epoch], nonlinearities[epoch], sensitivities[epoch] =\
                 self._train_step()
