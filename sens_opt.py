@@ -17,14 +17,9 @@ class Sensor(tf.Module):
         )
         self.optim_weights = np.array([1,1,1], dtype=np.float64)
         self.optim_weights = tf.nn.softmax(self.optim_weights).numpy()
-        if self.inputs["optim_config"]["autobound"]:
-            self.param_bounds = self._get_autobounds()
-        else:
-            self.param_bounds = self.inputs["manual_bounds"]
-        if self.inputs["optim_config"]["autoinitvals"]:
-            self.subclassed_sensor = subclassed_sensor(self._get_autoinitvals())
-        else:
-            self.subclassed_sensor = subclassed_sensor(self.inputs["manual_init_vals"])
+        self.param_bounds = self.inputs["specs"]["bounds"]
+        self.subclassed_sensor = subclassed_sensor(self.inputs["specs"]["init_vals"])
+        self.tracked = {}
         pass
 
     def _get_dO_dI(self,
@@ -43,19 +38,29 @@ class Sensor(tf.Module):
                              footprint,
                              nonlinearity,
                              avg_dO_dI):
+        self.tracked["alpha"].append(self.optim_weights[0])
+        self.tracked["beta"].append(self.optim_weights[1])
+        self.tracked["gamma"].append(self.optim_weights[2])
         if footprint > self.inputs["specs"]["max_footprint"]:
-            if self.footprint-footprint > 0:
+            if self.footprint-footprint < 0:
                 self.optim_weights[0] *= self.inputs["optim_config"]["secondary_lr"]
         if nonlinearity > self.inputs["specs"]["max_nonlinearity"]:
-            if self.nonlinearity-nonlinearity > 0:
+            if self.nonlinearity-nonlinearity < 0:
                 self.optim_weights[1] *= self.inputs["optim_config"]["secondary_lr"]
         if avg_dO_dI < self.inputs["specs"]["min_sensitivity"]:
-            if self.avg_dO_dI-avg_dO_dI < 0:
+            if self.avg_dO_dI-avg_dO_dI > 0:
                 self.optim_weights[2] *= self.inputs["optim_config"]["secondary_lr"]
         self.optim_weights = tf.nn.softmax(self.optim_weights).numpy()
         self.footprint = footprint
         self.nonlinearity = nonlinearity
         self.avg_dO_dI = avg_dO_dI
+        pass
+
+    def _bounds_enforcement(self) -> None:
+        for i, bound in enumerate(self.param_bounds):
+            self.trainable_variables[i].assign(tf.clip_by_value(self.trainable_variables[i],
+                                                                bound[0],
+                                                                bound[1]))
         pass
 
     def _get_loss(self) -> tf.float64:
@@ -74,20 +79,12 @@ class Sensor(tf.Module):
         nonlinearity = self._get_nonlinearity(I_values, sensor_O, avg_dO_dI)
         footprint = self.subclassed_sensor._get_footprint(*self.trainable_variables)
         
-        loss = self.optim_weights[0]*footprint\
-               +self.optim_weights[1]*nonlinearity\
-               -self.optim_weights[2]*avg_dO_dI\
+        loss = self.optim_weights[0]*footprint*self.inputs["optim_config"]["fixed_loss_weights"][0]\
+               +self.optim_weights[1]*nonlinearity*self.inputs["optim_config"]["fixed_loss_weights"][1]\
+               -self.optim_weights[2]*avg_dO_dI*self.inputs["optim_config"]["fixed_loss_weights"][2]\
         
         return loss, footprint, nonlinearity, avg_dO_dI
 
-    def _bounds_enforcement(self) -> None:
-        for i, bound in enumerate(self.param_bounds):
-            self.trainable_variables[i].assign(tf.clip_by_value(self.trainable_variables[i],
-                                                                bound[0],
-                                                                bound[1]))
-        pass
-
-    # @tf.function
     def _train_step(self):
         with tf.GradientTape() as tape:
             tape.watch(self.trainable_variables)
@@ -101,6 +98,9 @@ class Sensor(tf.Module):
         return loss, footprint, nonlinearity, avg_dO_dI
 
     def _fit(self):
+        self.tracked["alpha"] = []
+        self.tracked["beta"] = []
+        self.tracked["gamma"] = []
         for name, val in self.subclassed_sensor.__dict__.items():
             self.__setattr__(name, tf.Variable(initial_value=val,
                                                trainable=True,

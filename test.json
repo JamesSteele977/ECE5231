@@ -3,22 +3,24 @@
     "material": "si",
 
     "optim_config": {
-        "learning_rate": 1e-6,
+        "learning_rate": 5e-2,
         "secondary_lr": 10,
-        "epochs": 1000,
+        "epochs": 500,
 
-        "sample_depth": 100
+        "sample_depth": 100,
+
+        "fixed_loss_weights": [1, 1, 2]
     },
 
     "specs": {
-        "fsi": [1e-5, 1e-4],
+        "fsi": [1, 100],
 
-        "max_nonlinearity": 1e-10,
-        "max_footprint": 1e-3,
-        "min_sensitivity": 1,
+        "max_nonlinearity": 1,
+        "max_footprint": 6,
+        "min_sensitivity": 2,
 
-        "bounds": [[1e-6, 1e-3], [1e-6, 1e-3]],
-        "init_vals": [1e-4, 1e-4]
+        "bounds": [[2, 7], [1, 10]],
+        "init_vals": [4, 5]
     },
 
     "settings": {

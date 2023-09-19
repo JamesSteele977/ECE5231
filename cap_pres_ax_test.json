@@ -1,35 +1,31 @@
 {
-    "sensor_type": "capacitive_pressure_axial",
+    "sensor_type": "capacitive_pressure_cantilever",
     "material": "si",
 
     "optim_config": {
-        "learning_rate": 1e-5,
+        "learning_rate": 1e-6,
         "secondary_lr": 10,
-        "epochs": 1000,
-
+        "epochs": 500,
         "sample_depth": 1000,
-
-        "autobound": false,
-        "autoinitvals": false
+        "fixed_loss_weights": [1e-1, 1e0, 1e9]
     },
 
     "specs": {
         "fsi": [1e-5, 1e-4],
-        "max_abs_error": 1e-10,
-        "max_nonlinearity": 1e-10,
         "max_footprint": 1e-3,
-        "min_sensitivity": 1e-11
+        "max_nonlinearity": 1e9,
+        "min_sensitivity": 1e0,
+
+    "bounds": [[1e-6, 1e-3], 
+                [1e-6, 1e-3],
+                [1e-6, 1e-3],
+                [1e-6, 1e-3]],
+
+    "init_vals": [1e-4, 
+                1e-4, 
+                1e-4, 
+                1e-4]
     },
-
-    "manual_bounds": [[1e-6, 1e-3], 
-                    [1e-6, 1e-3],
-                    [1e-6, 1e-3],
-                    [1e-6, 1e-3]],
-
-    "manual_init_vals": [1e-4, 
-                         1e-4, 
-                         1e-4, 
-                         1e-4],
 
     "settings": {
         "constants": {

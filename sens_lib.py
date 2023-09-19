@@ -81,9 +81,10 @@ class TestSensor():
 
     def _get_footprint(self,
                        x: tf.float64,
+                       y: tf.float64,
                        *args,
                        **kwargs):
-        return x
+        return x*y
 
     def _get_output(self, 
                     I: tf.float64,
