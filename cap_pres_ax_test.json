@@ -5,7 +5,7 @@
     "optim_config": {
         "learning_rate": 1e-6,
         "secondary_lr": 10,
-        "epochs": 500,
+        "epochs": 150,
         "sample_depth": 1000,
         "fixed_loss_weights": [1e-1, 1e0, 1e9]
     },
@@ -14,7 +14,9 @@
         "fsi": [1e-5, 1e-4],
         "max_footprint": 1e-3,
         "max_nonlinearity": 1e9,
-        "min_sensitivity": 1e0,
+        "min_sensitivity": 1e0
+    },
+
 
     "bounds": [[1e-6, 1e-3], 
                 [1e-6, 1e-3],
@@ -24,8 +26,7 @@
     "init_vals": [1e-4, 
                 1e-4, 
                 1e-4, 
-                1e-4]
-    },
+                1e-4],
 
     "settings": {
         "constants": {

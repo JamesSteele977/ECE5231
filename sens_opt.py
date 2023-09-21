@@ -17,8 +17,8 @@ class Sensor(tf.Module):
         )
         self.optim_weights = np.array([1,1,1], dtype=np.float64)
         self.optim_weights = tf.nn.softmax(self.optim_weights).numpy()
-        self.param_bounds = self.inputs["specs"]["bounds"]
-        self.subclassed_sensor = subclassed_sensor(self.inputs["specs"]["init_vals"])
+        self.param_bounds = self.inputs["bounds"]
+        self.subclassed_sensor = subclassed_sensor(self.inputs["init_vals"])
         self.tracked = {}
         pass
 
@@ -88,16 +88,14 @@ class Sensor(tf.Module):
     def _train_step(self):
         with tf.GradientTape() as tape:
             tape.watch(self.trainable_variables)
-            
             loss, footprint, nonlinearity, avg_dO_dI = self._get_loss()
-
         grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
         self._bounds_enforcement()
         self._update_loss_weights(footprint, nonlinearity, avg_dO_dI)
         return loss, footprint, nonlinearity, avg_dO_dI
 
-    def _fit(self):
+    def _fit(self, verbose=True):
         self.tracked["alpha"] = []
         self.tracked["beta"] = []
         self.tracked["gamma"] = []
@@ -114,4 +112,16 @@ class Sensor(tf.Module):
             losses[epoch], footprints[epoch], nonlinearities[epoch], sensitivities[epoch] =\
                 self._train_step()
             params[epoch, :] = self.trainable_variables
+
+        if verbose:
+            self.subclassed_sensor._plot(trained_vars=self.trainable_variables,
+                                        losses=losses,
+                                        footprints=footprints,
+                                        nonlinearities=nonlinearities,
+                                        sensitivities=sensitivities,
+                                        params=params,
+                                        inputs=self.inputs, 
+                                        settings=self.settings,
+                                        tracked=self.tracked)
+
         return losses, params, footprints, nonlinearities, sensitivities
