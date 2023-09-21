@@ -1,8 +1,7 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from sens_opt import *
 from sens_lib import *
-import json, sys, pdb
+import json, sys
 
 subclassing_dict = {
     "capacitive": {
@@ -10,7 +9,8 @@ subclassing_dict = {
             "axial": AxialCapacitivePressureSensor,
             "cantilever": CatileverCapacitivePressureSensor
         }
-    }
+    },
+    "test":{"":{"":TestSensor}}
 }
 
 with open(sys.argv[1], 'r') as f:
@@ -23,27 +23,7 @@ sensor = Sensor(settings=inputs["settings"],
                 inputs=inputs,
                 subclassed_sensor=subclassed_sensor)
 
-losses, params, footprints, nonlinearities, sensitivities = sensor._fit()
+_ = sensor._fit(verbose=True)
 
-print(f"""
-OPTIMIZED PARAMS:
-Width: {params[-1,0]}
-Height: {params[-1,1]}
-Z Dist: {params[-1,2]}
-Length: {params[-1,3]}
-""")
 
-def normalize(X):
-    return (X-np.min(X))/(np.ptp(X))
 
-fig, ax = plt.subplots(1, 2)
-# plt.yscale('log')
-ax[0].plot(losses)
-plt.legend(["loss"])
-for parameter in range(params.shape[-1]):
-    ax[1].plot(params[:,parameter])
-ax[1].plot(normalize(footprints)*np.max(params), 'r--')
-ax[1].plot(normalize(nonlinearities)*np.max(params), 'g--')
-ax[1].plot(normalize(sensitivities)*np.max(params), 'b--')
-plt.legend(["width", "height", "z_dist", "length", "footprint", "nonlinear", "dOdI"])
-plt.show()

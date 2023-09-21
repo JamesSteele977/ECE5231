@@ -3,36 +3,30 @@
     "material": "si",
 
     "optim_config": {
-        "alpha": 5e3,
-        "beta": 5e-5,
-        "gamma": 1e-5,
-
-        "learning_rate": 1e-7,
-        "epochs": 1000,
-
-        "sample_depth": 10000,
-
-        "autobound": false,
-        "autoinitvals": false
+        "learning_rate": 1e-6,
+        "secondary_lr": 10,
+        "epochs": 150,
+        "sample_depth": 1000,
+        "fixed_loss_weights": [1e-1, 1e0, 1e9]
     },
 
     "specs": {
-        "fsi": [1e-3, 1e-2],
-        "max_abs_error": 1e-10,
-        "max_nonlinearity": 1e-10,
+        "fsi": [1e-5, 1e-4],
         "max_footprint": 1e-3,
-        "min_sensitivity": 1e-11
+        "max_nonlinearity": 1e9,
+        "min_sensitivity": 1e0
     },
 
-    "manual_bounds": [[1e-6, 1e-3], 
-                      [1e-6, 1e-3],
-                      [1e-6, 1e-3],
-                      [1e-6, 1e-3]],
 
-    "manual_init_vals": [1e-4, 
-                         1e-4, 
-                         1e-4, 
-                         1e-4],
+    "bounds": [[1e-6, 1e-3], 
+                [1e-6, 1e-3],
+                [1e-6, 1e-3],
+                [1e-6, 1e-3]],
+
+    "init_vals": [1e-4, 
+                1e-4, 
+                1e-4, 
+                1e-4],
 
     "settings": {
         "constants": {

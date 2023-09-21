@@ -1,0 +1,36 @@
+{
+    "sensor_type": "test__",
+    "material": "si",
+
+    "optim_config": {
+        "learning_rate": 5e-2,
+        "secondary_lr": 10,
+        "epochs": 500,
+
+        "sample_depth": 100,
+
+        "fixed_loss_weights": [1, 1, 2]
+    },
+
+    "specs": {
+        "fsi": [1, 100],
+
+        "max_nonlinearity": 1,
+        "max_footprint": 6,
+        "min_sensitivity": 2,
+
+        "bounds": [[2, 7], [1, 10]],
+        "init_vals": [4, 5]
+    },
+
+    "settings": {
+        "constants": {
+            "epsilon_not": 8.85418782e-12,
+            "materials": {
+                "si": {
+                    "youngs_mod": 157e9
+                }
+            }
+        }
+    }
+}
