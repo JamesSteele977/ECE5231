@@ -27,17 +27,17 @@ losses, params, footprints, nonlinearities, sensitivities = sensor._fit()
 
 print(f"""
 OPTIMIZED PARAMS:
-Width: {params[-1,0]*inputs["unit_norm"]}
-Height: {params[-1,1]*inputs["unit_norm"]}
-Z Dist: {params[-1,2]*inputs["unit_norm"]}
-Length: {params[-1,3]*inputs["unit_norm"]}
+Width: {params[-1,0]}
+Height: {params[-1,1]}
+Z Dist: {params[-1,2]}
+Length: {params[-1,3]}
 """)
 
 def normalize(X):
     return (X-np.min(X))/(np.ptp(X))
 
 fig, ax = plt.subplots(1, 2)
-plt.yscale('log')
+# plt.yscale('log')
 ax[0].plot(losses)
 plt.legend(["loss"])
 for parameter in range(params.shape[-1]):

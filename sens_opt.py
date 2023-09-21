@@ -45,13 +45,14 @@ class Sensor(tf.Module):
         return tf.reduce_sum(error)/(self.inputs["specs"]["fsi"][1]-self.inputs["specs"]["fsi"][0])
 
     def _get_loss(self) -> tf.float64:
-        I_values = tf.linspace(self.inputs["specs"]["fsi"][0], 
-                               self.inputs["specs"]["fsi"][1],
-                               self.inputs["optim_config"]["sample_depth"])
+        I_values = tf.cast(tf.linspace(self.inputs["specs"]["fsi"][0], 
+                                       self.inputs["specs"]["fsi"][1],
+                                       self.inputs["optim_config"]["sample_depth"]), 
+                           dtype=tf.float64)
         sensor_O = self.subclassed_sensor._get_output(I_values,
-                                                        *self.trainable_variables,
-                                                        self.settings["constants"],
-                                                        self.inputs["material"])
+                                                     *self.trainable_variables,
+                                                      self.settings["constants"],
+                                                      self.inputs["material"])
 
         avg_dO_dI = self._get_dO_dI(sensor_O, I_values)
         nonlinearity = self._get_nonlinearity(I_values, sensor_O, avg_dO_dI)
@@ -69,8 +70,13 @@ class Sensor(tf.Module):
         for i, grad in enumerate(gradients):
             bound = self.param_bounds[i]
             param = self.trainable_variables[i]
-            limit = np.min((param-bound[0], bound[1]-param))
-            new_grad.append((limit+(limit/tf.math.sigmoid(grad)))/self.optimizer.learning_rate)
+            proj_val = (param+(grad*self.optimizer.learning_rate))
+            new_grad.append(
+                ((tf.minimum((
+                    tf.relu(bound[1]-proj_val),
+                    tf.relu(proj_val-bound[0])
+                ))-param)/self.optimizer.learning_rate)
+            )
         return tuple(new_grad)
 
     # @tf.function
@@ -92,7 +98,7 @@ class Sensor(tf.Module):
                                                dtype=tf.float64))
         epochs = self.inputs["optim_config"]["epochs"]
         losses, footprints, nonlinearities, sensitivities =\
-            tuple([np.empty((epochs), dtype=np.float32) for i in range(4)])
+            tuple([np.empty((epochs), dtype=np.float64) for i in range(4)])
         params = np.empty((epochs, len(self.trainable_variables)))
         for epoch in tqdm(range(epochs), desc="Fitting... "):
             losses[epoch], footprints[epoch], nonlinearities[epoch], sensitivities[epoch] =\
