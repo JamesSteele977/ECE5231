@@ -5,34 +5,37 @@ from sens_lib import *
 
 """ GENERAL SENSOR OPTIMIZATION MODEL """
 class Sensor(tf.Module):
-    def __init__(self,
-                 settings: dict,
-                 inputs: dict,
-                 subclassed_sensor: object) -> None:
+    def __init__(
+        self,
+        inputs: dict,
+        subclassed_sensor: object
+    ) -> None:
         super().__init__()
-        self.settings = settings
         self.inputs = inputs
         self.optimizer = tf.optimizers.Adam(
             learning_rate=inputs["optim_config"]["learning_rate"]
         )
-        self.optim_weights = np.array([1,1,1], dtype=np.float64)
-        self.optim_weights = tf.nn.softmax(self.optim_weights).numpy()
         self.param_bounds = self.inputs["bounds"]
         self.subclassed_sensor = subclassed_sensor(self.inputs["init_vals"])
         self.tracked = {}
         pass
 
-    def _get_dO_dI(self,
-                   sensor_O: tf.Tensor,
-                   I_values: tf.Tensor) -> tf.float64:
-        return (sensor_O[-1]-sensor_O[0])/(I_values[-1]-I_values[0])
 
-    def _get_nonlinearity(self, 
-                          I_values: tf.Tensor, 
-                          sensor_O: tf.Tensor, 
-                          avg_dO_dI: tf.float64) -> tf.float64:
-        error = tf.math.abs(sensor_O-(avg_dO_dI * (I_values-I_values[0]) + sensor_O[0]))
-        return tf.reduce_sum(error)/(self.inputs["specs"]["fsi"][1]-self.inputs["specs"]["fsi"][0])
+    """ LOSS FUNCTIONS """
+    def _get_factor(
+        self,
+        domain: tf.Tensor,
+        response: tf.Tensor
+    ) -> tf.float32:
+        return (response[-1]-response[0])/(domain[-1]-domain[0])
+
+    def _get_mse(
+        self, 
+        domain: tf.Tensor, 
+        response: tf.Tensor, 
+        factor: tf.float32
+    ) -> tf.float32:
+        return tf.square(response-(factor*domain+response[0]))/(domain[-1]-domain[0])
 
     def _update_loss_weights(self, 
                              footprint,
@@ -63,27 +66,31 @@ class Sensor(tf.Module):
                                                                 bound[1]))
         pass
 
-    def _get_loss(self) -> tf.float64:
-        I_values = tf.cast(
-            tf.linspace(self.inputs["specs"]["fsi"][0], 
-                        self.inputs["specs"]["fsi"][1],
-                        self.inputs["optim_config"]["sample_depth"]),
-            dtype=tf.float64
-        )
-        sensor_O = self.subclassed_sensor._get_output(I_values,
-                                                    *self.trainable_variables,
-                                                    self.settings["constants"],
-                                                    self.inputs["material"])
+    def _get_loss(self) -> tuple:
+        domain = tf.linspace
+        response = self._get_output(domain, *self.trainable_variables)
 
-        avg_dO_dI = self._get_dO_dI(sensor_O, I_values)
-        nonlinearity = self._get_nonlinearity(I_values, sensor_O, avg_dO_dI)
-        footprint = self.subclassed_sensor._get_footprint(*self.trainable_variables)
+        factor = self._get_factor(domain, response)
+        mse = self._get_mse(domain, response, factor)
+        footprint = self._get_footprint(*self.trainable_variables)
         
-        loss = self.optim_weights[0]*footprint*self.inputs["optim_config"]["fixed_loss_weights"][0]\
-               +self.optim_weights[1]*nonlinearity*self.inputs["optim_config"]["fixed_loss_weights"][1]\
-               -self.optim_weights[2]*avg_dO_dI*self.inputs["optim_config"]["fixed_loss_weights"][2]\
-        
-        return loss, footprint, nonlinearity, avg_dO_dI
+        loss = footprint+mse-factor
+        return loss, factor, mse, footprint
+
+    def _bounds_enforcement(self, 
+                            gradients: tuple) -> tuple:
+        new_grad = []
+        for i, grad in enumerate(gradients):
+            bound = self.param_bounds[i]
+            param = self.trainable_variables[i]
+            proj_val = (param+(grad*self.optimizer.learning_rate))
+            new_grad.append(
+                ((tf.minimum((
+                    tf.relu(bound[1]-proj_val),
+                    tf.relu(proj_val-bound[0])
+                ))-param)/self.optimizer.learning_rate)
+            )
+        return tuple(new_grad)
 
     def _train_step(self):
         with tf.GradientTape() as tape:
@@ -102,7 +109,7 @@ class Sensor(tf.Module):
         for name, val in self.subclassed_sensor.__dict__.items():
             self.__setattr__(name, tf.Variable(initial_value=val,
                                                trainable=True,
-                                               dtype=tf.float64))
+                                               dtype=tf.float32))
         epochs = self.inputs["optim_config"]["epochs"]
         losses, footprints, nonlinearities, sensitivities =\
             tuple([np.empty((epochs), dtype=np.float32) for i in range(4)])
@@ -114,14 +121,16 @@ class Sensor(tf.Module):
             params[epoch, :] = self.trainable_variables
 
         if verbose:
-            self.subclassed_sensor._plot(trained_vars=self.trainable_variables,
-                                        losses=losses,
-                                        footprints=footprints,
-                                        nonlinearities=nonlinearities,
-                                        sensitivities=sensitivities,
-                                        params=params,
-                                        inputs=self.inputs, 
-                                        settings=self.settings,
-                                        tracked=self.tracked)
+            self.subclassed_sensor._plot(
+                trained_vars=self.trainable_variables,
+                losses=losses,
+                footprints=footprints,
+                nonlinearities=nonlinearities,
+                sensitivities=sensitivities,
+                params=params,
+                inputs=self.inputs, 
+                settings=self.settings,
+                tracked=self.tracked
+            )
 
         return losses, params, footprints, nonlinearities, sensitivities

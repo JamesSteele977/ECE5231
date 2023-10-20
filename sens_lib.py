@@ -108,7 +108,7 @@ class CatileverCapacitivePressureSensor(CapacitivePressureSensor):
                           *args,
                           **kwargs) -> tf.float64:
         return constants["materials"][material]["youngs_mod"]*((w*(h**3))/(4*(L**3)))
-
+    
     def _get_output(self, 
                     F: tf.float64, 
                     w: tf.float64, 
