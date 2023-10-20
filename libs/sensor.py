@@ -1,27 +1,20 @@
+if __name__ != "__main__":
+    import os
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
-from sens_lib import *
 
-""" GENERAL SENSOR OPTIMIZATION MODEL """
 class Sensor(tf.Module):
-    def __init__(
-        self,
-        inputs: dict,
-        subclassed_sensor: object
-    ) -> None:
+    def __init__(self, **kwargs) -> None:
         super().__init__()
-        self.inputs = inputs
-        self.optimizer = tf.optimizers.Adam(
-            learning_rate=inputs["optim_config"]["learning_rate"]
-        )
-        self.param_bounds = self.inputs["bounds"]
-        self.subclassed_sensor = subclassed_sensor(self.inputs["init_vals"])
-        self.tracked = {}
+        self.optimizer = tf.optimizers.Adam()
         pass
 
+    def summary(self):
+        pass
 
-    """ LOSS FUNCTIONS """
     def _get_factor(
         self,
         domain: tf.Tensor,
@@ -102,14 +95,10 @@ class Sensor(tf.Module):
         self._update_loss_weights(footprint, nonlinearity, avg_dO_dI)
         return loss, footprint, nonlinearity, avg_dO_dI
 
-    def _fit(self, verbose=True):
+    def fit(self):
         self.tracked["alpha"] = []
         self.tracked["beta"] = []
         self.tracked["gamma"] = []
-        for name, val in self.subclassed_sensor.__dict__.items():
-            self.__setattr__(name, tf.Variable(initial_value=val,
-                                               trainable=True,
-                                               dtype=tf.float32))
         epochs = self.inputs["optim_config"]["epochs"]
         losses, footprints, nonlinearities, sensitivities =\
             tuple([np.empty((epochs), dtype=np.float32) for i in range(4)])
@@ -119,18 +108,4 @@ class Sensor(tf.Module):
             losses[epoch], footprints[epoch], nonlinearities[epoch], sensitivities[epoch] =\
                 self._train_step()
             params[epoch, :] = self.trainable_variables
-
-        if verbose:
-            self.subclassed_sensor._plot(
-                trained_vars=self.trainable_variables,
-                losses=losses,
-                footprints=footprints,
-                nonlinearities=nonlinearities,
-                sensitivities=sensitivities,
-                params=params,
-                inputs=self.inputs, 
-                settings=self.settings,
-                tracked=self.tracked
-            )
-
         return losses, params, footprints, nonlinearities, sensitivities
