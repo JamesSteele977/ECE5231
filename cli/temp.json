@@ -1,0 +1,8 @@
+{
+    "parameters": ["a", "b", "c"],
+    "expressions": {"d": "a*b*c", "e": "a+2*b"},
+    "constraints": {"a": [1, 2], "b": [1, 2], "c": [1, 2]},
+    "footprint": "a*b",
+    "IO": "log(a)*(d+e)",
+    "README": ""
+}
