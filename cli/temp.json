@@ -1,9 +1,12 @@
-{   "params": {
-    "x": null,
-    "y": {}
-},
+{
+    "params": {
+        "a": {
+            "bound": [1,2],
+            "relations": []
+        }
+    },
     "expressions": {},
-    "footprint": "x",
-    "IO": "x",
+    "footprint": "a",
+    "IO": "a",
     "README": ""
 }

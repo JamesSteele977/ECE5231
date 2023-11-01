@@ -15,17 +15,15 @@ def _check_(path: str, ftype: str):
 
 def read_json(path: str) -> dict:
     _check_(path, 'json')
-    with open(path, 'r') as f:
-        test = f.read()
-        if (test is None) or (test == '{}'):
-            data = {}
-        else:
-            try:
-                data = json.load(f)
-            except json.JSONDecodeError:
-                data = {}
-                print(f"Error encountered in {path} read; returning empty")
-    return data
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+        return data
+    except json.JSONDecodeError:
+        print("Incorrect formatting during read file {name}. Overwriting.")
+        with open(path, 'w') as f:
+            json.dump({}, f)
+        return {}
 
 def write_json_dict(path: str, data: dict):
     _check_(path, 'json')

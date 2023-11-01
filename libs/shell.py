@@ -33,8 +33,10 @@ class ShellFn():
         sensmd = proc.read_md(self.sensmd)
         temp_config = {
             'params': {
-                'bound': '',
-                'init': ''
+                '': {
+                    'bound': [],
+                    'relations': []
+                }
             }, 
             'expressions': {},
             'footprint': "",
@@ -43,46 +45,46 @@ class ShellFn():
         } # Kwargs for Sensor() init
 
         while True:
-            proc.write_json_dict(
-                self.temp, 
-                {
-                    'parameters': [], 
-                    'expressions': {},
-                    'constraints': {},
-                    'footprint': "",
-                    'IO': "", 
-                    'README': sensmd
-                }
-            )
-            os.system(f"nano {self.temp}") # User input for Sensor() configuration
-            with open(self.temp, 'r') as f:
-                try:
-                    config = json.load(f)
-                    break
-                except json.JSONDecodeError as e:
-                    print(e)
+            proc.write_json_dict(self.temp, temp_config)
+            os.system(f"nano {self.temp}")
+            config = proc.read_json(self.temp)
+            if config != -1:
+                break
 
         sens = proc.read_json(self.sens)
+
         if name in sens.keys():
+
             overwrite = str(input(f"Warning: Sensor {name} already exists. Overwrite? [y/n] ")).upper()
             while overwrite not in {'Y', 'N'}:
                 overwrite = str(input('Invalid response [y/n]')).upper()
+
             if overwrite.upper() == 'N':
                 print('Discarding configuration file')
-                return None
+                return
             
-            sens[name] = config
-            json.dump(sens, f)
+        sens[name] = config
+        proc.write_json_dict(self.sens, sens)
         
         new_sensor = Sensor(**config)
         self.sensors[name] = new_sensor
-        print(f"Sensor {name} configured successfully! Optim-Ready: {new_sensor.ready['bool']}")
-        if not new_sensor.ready['bool']:
-            print(f"Sensor {name} missing args: {new_sensor.ready['list']}")
-
+        print(f"Sensor {name} configured")
+        ready = self._sensor_ready(name)
+        if len(ready) != 0:
+            print(f"Sensor {name} not Optim-Ready; missing args: {new_sensor.ready['list']}")
         pass
 
-    def _configure_optim(self, name):
+    def _sensor_ready(self, name: str) -> list:
+        if name not in self.sensors.keys():
+            raise KeyError(f"Sensor register does not contain key {name}")
+        vars = self.sensors[name].__dict__
+        # val_check = lambda val: True if (
+        #     (var in {""})
+        #     (val is None)
+        # )
+        # return [var for var, val in vars.items() if (val is None) else]
+
+    def _configure_optim(self, name: str):
         self.optims[name] = Optim()
         pass
 
@@ -152,7 +154,7 @@ class UI(cmd.Cmd, ShellFn):
         try:
             args = parser.parse_args()
             self._configure_sensor(args.name)
-            print(f"-----{args.name} sucessfully created-----\n{self.sensors[args.name].summary()}")
+            print(f"-----{args.name}-----\n{self.sensors[args.name].summary()}")
         except argparse.ArgumentError as e:
             print(str(e))
         except SystemExit:

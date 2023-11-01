@@ -1,1 +1,29 @@
-{}
+{
+    "Sensor_1": {
+        "params": {
+            "a": {
+                "bound": [
+                    1,
+                    2
+                ],
+                "relations": []
+            }
+        },
+        "expressions": {},
+        "footprint": "a",
+        "IO": "a",
+        "README": ""
+    },
+    "Sensor_2": {
+        "params": {
+            "t": {
+                "bound": [],
+                "init": null
+            }
+        },
+        "expressions": {},
+        "footprint": "",
+        "IO": "",
+        "README": ""
+    }
+}

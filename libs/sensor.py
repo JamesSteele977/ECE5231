@@ -1,12 +1,41 @@
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+from sympy import sympify, lambdify, symbols
 
 class Sensor(tf.Module):
     def __init__(self, **kwargs) -> None:
         super().__init__()
         self.optimizer = tf.optimizers.Adam()
+        
+        syms = []
+        for param, args in kwargs['params'].items():
+            setattr(
+                self, 
+                param,
+                tf.Variable(
+                    initial_value=np.mean(args['bound']),
+                    trainable=True,
+                    name=param
+                )
+            )
+            getattr(self, param).bound = args['bound']
+            getattr(self, param).realations = args['releations']
+            syms.append(symbols(param))
+        
+        for param, expr in kwargs['expressions'].items():
+            sym_expr = sympify(expr)
+            self.param = lambdify()
+
+        self._get_output = kwargs['IO']
+        self._get_footprint = kwargs['footprint']
         pass
+
+    def create_function(expression_str, potential_symbols):
+        symbols_dict = {symbol: symbols(symbol) for symbol in potential_symbols}
+        expr = sympify(expression_str, locals=symbols_dict)
+        used_symbols = [symbols_dict[symbol.name] for symbol in expr.free_symbols]
+        return lambdify(used_symbols, expr)
 
     def summary(self):
         pass
