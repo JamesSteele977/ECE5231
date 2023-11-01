@@ -2,6 +2,7 @@ import cmd, os, argparse, json
 from typing import IO
 from libs.sensor import Sensor
 from libs.optim import Optim
+import libs.proc as proc
 import numpy as np
 
 class ShellFn():
@@ -29,41 +30,46 @@ class ShellFn():
         """
         Configure sensor object's parameters and IO relationships
         """
-        with open(os.path.join(self.sensmd), 'r') as f:
-            sensmd = f.read()
-
+        sensmd = proc.read_md(self.sensmd)
         temp_config = {
-            'parameters': [], 
+            'params': {
+                'bound': '',
+                'init': ''
+            }, 
             'expressions': {},
-            'constraints': {},
             'footprint': "",
             'IO': "", 
             'README': sensmd
         } # Kwargs for Sensor() init
 
         while True:
-            temp_path = os.path.join(self.cli_path, 'temp.json') # Path to file for nano edit
-            with open(temp_path, 'w') as f:
-                json.dump(temp_config, f, indent=4) # Overwrite temp file with temp_config
-
-            os.system(f"nano {temp_path}") # User input for Sensor() configuration
-            with open(temp_path, 'r') as f:
+            proc.write_json_dict(
+                self.temp, 
+                {
+                    'parameters': [], 
+                    'expressions': {},
+                    'constraints': {},
+                    'footprint': "",
+                    'IO': "", 
+                    'README': sensmd
+                }
+            )
+            os.system(f"nano {self.temp}") # User input for Sensor() configuration
+            with open(self.temp, 'r') as f:
                 try:
                     config = json.load(f)
                     break
                 except json.JSONDecodeError as e:
                     print(e)
 
-        with open(os.path.join(self.cli_path, 'sens.json'), 'w') as f:
-            sens = json.load(f) # Get current sensor registry
-
-            if name in sens.keys():
-                overwrite = str(input(f"Warning: Sensor {name} already exists. Overwrite? [y/n] ")).upper()
-                while overwrite not in {'Y', 'N'}:
-                    overwrite = str(input('Invalid response [y/n]')).upper()
-                if overwrite.upper() == 'N':
-                    print('Discarding configuration file')
-                    return None
+        sens = proc.read_json(self.sens)
+        if name in sens.keys():
+            overwrite = str(input(f"Warning: Sensor {name} already exists. Overwrite? [y/n] ")).upper()
+            while overwrite not in {'Y', 'N'}:
+                overwrite = str(input('Invalid response [y/n]')).upper()
+            if overwrite.upper() == 'N':
+                print('Discarding configuration file')
+                return None
             
             sens[name] = config
             json.dump(sens, f)

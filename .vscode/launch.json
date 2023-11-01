@@ -6,8 +6,7 @@
             "request": "launch",
             "program": "./main.py",
             "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": "./cap_pres_ax_test.json"
+            "justMyCode": true
         }
     ]
 }
