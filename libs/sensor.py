@@ -1,44 +1,131 @@
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
-from sympy import sympify, lambdify, symbols
+from sympy import sympify, lambdify, symbols, solve
+import inspect
+from types import SimpleNamespace
+from copy import deepcopy
+from libs.optim import Optim
 
 class Sensor(tf.Module):
     def __init__(self, **kwargs) -> None:
         super().__init__()
         self.optimizer = tf.optimizers.Adam()
+        self.relations = []
+        self.syms = tuple()
+
+        for name, bound in kwargs['params'].items():
+            self._set_param(name, bound)
+
+        for name, expr in kwargs['expressions'].items():
+            self._set_expr(name, expr)
         
-        syms = []
-        for param, args in kwargs['params'].items():
-            setattr(
-                self, 
-                param,
+        for rel in kwargs['relations']:
+            self._set_relation(rel)
+
+        self._IO = lambdify(self.syms, sympify(kwargs['IO']))
+        self._footprint = lambdify(self.syms, sympify(kwargs['footprint']))
+        pass
+
+    def _set_param(self, name: str, bound: list) -> None:
+        self.syms.append(symbols(name))
+        setattr(
+            self, name,
+            tf.Variable(
+                initial_value=np.mean(bound),
+                trainable=True,
+                name=name
+            )
+        )
+        getattr(self, name).bound = tuple(bound)
+        pass
+
+    def _set_relation(self, rel):
+        sym_expr = sympify(rel)
+        lmd_expr = lambdify(self.syms, sym_expr)
+        lmd_args = list(sym_expr.free_symbols)
+
+        def rel_bool(self):
+            input_args = [self._get_param(name) for name in lmd_args]
+            if None in input_args:
+                missing_args = [name for idx, name in enumerate(lmd_args) if input_args[idx] is None]
+                raise ValueError(f"Missing keyword arguments: {', '.join(missing_args)}")
+            return lmd_expr(*input_args)
+        
+        def rel_path(self):
+            input_args = {name:self._get_param(name) for name in lmd_args}
+            if None in input_args:
+                missing_args = [name for idx, name in enumerate(lmd_args) if input_args[idx] is None]
+                if len(missing_args) > 1:
+                    raise ValueError(f"Missing keyword arguments: {', '.join(missing_args)}")
+                x = missing_args[0]
+            solution = solve(sym_expr.subs(input_args), x)
+            return solution
+
+        self.relations.append(
+            SimpleNamespace(
+                eval=rel_bool,
+                path=rel_path
+            )
+        )
+        pass
+
+    def _set_expr(self, name, expr):
+        self.syms.append(symbols(name))
+        sym_expr = sympify(expr)
+        lmd_expr = lambdify(self.syms, sym_expr)
+        lmd_args = list(sym_expr.free_symbols)
+
+        def expr_fn(self):
+            input_args = [self._get_param(name) for name in lmd_args]
+            if None in input_args:
+                missing_args = [name for idx, name in enumerate(lmd_args) if input_args[idx] is None]
+                raise ValueError(f"Missing keyword arguments: {', '.join(missing_args)}")
+            return lmd_expr(*input_args)
+
+        setattr(self, name, expr_fn)
+        pass
+
+    def _set_param(self, name, args):
+        setattr(
+                self, name,
                 tf.Variable(
                     initial_value=np.mean(args['bound']),
                     trainable=True,
-                    name=param
+                    name=name
                 )
             )
-            getattr(self, param).bound = args['bound']
-            getattr(self, param).realations = args['releations']
-            syms.append(symbols(param))
-        
-        for param, expr in kwargs['expressions'].items():
-            sym_expr = sympify(expr)
-            self.param = lambdify()
-
-        self._get_output = kwargs['IO']
-        self._get_footprint = kwargs['footprint']
+        getattr(self, name).bound = args['bound']
+        getattr(self, name).relations = args['relations']
         pass
 
-    def create_function(expression_str, potential_symbols):
-        symbols_dict = {symbol: symbols(symbol) for symbol in potential_symbols}
-        expr = sympify(expression_str, locals=symbols_dict)
-        used_symbols = [symbols_dict[symbol.name] for symbol in expr.free_symbols]
-        return lambdify(used_symbols, expr)
+    def _get_param(self, name):
+        for var in self.trainable_variables:
+            if var.name == name:
+                return deepcopy(var)
+        pass
 
     def summary(self):
         pass
+
+    def _relation_enforcement(self, relation: SimpleNamespace, gradient, vars):
+        if relation.eval:
+            return vars
+        rel_params = list(relation.path.free_symbols)
+        sampled_points = []
+        for param in rel_params:
+            bound = getattr(self, param).bound
+            sampled_points.append(np.arange(bound[1], bound[2], self.rel_fs))
+        min_distance = np.inf
+        closest_point = {}
+        for values in np.nditer(np.meshgrid(*sampled_points)):
+            current_point = {str(variables[i]): float(values[i]) for i in range(len(variables))}
+            if relation.path(current_point):
+                distance = sum((point[var] - current_point[var])**2 for var in point)
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_point = current_point
+        return closest_point
 
     def _get_factor(
         self,
@@ -79,9 +166,11 @@ class Sensor(tf.Module):
 
     def _bounds_enforcement(self) -> None:
         for i, bound in enumerate(self.param_bounds):
-            self.trainable_variables[i].assign(tf.clip_by_value(self.trainable_variables[i],
-                                                                bound[0],
-                                                                bound[1]))
+            self.trainable_variables[i].assign(
+                tf.clip_by_value(self.trainable_variables[i],
+                bound[0],
+                bound[1])
+            )
         pass
 
     def _get_loss(self) -> tuple:

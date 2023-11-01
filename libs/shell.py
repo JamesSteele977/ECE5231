@@ -33,11 +33,9 @@ class ShellFn():
         sensmd = proc.read_md(self.sensmd)
         temp_config = {
             'params': {
-                '': {
-                    'bound': [],
-                    'relations': []
-                }
+                '': []
             }, 
+            'relations': [],
             'expressions': {},
             'footprint': "",
             'IO': "", 
