@@ -12,7 +12,7 @@ class Sensor(tf.Module):
         super().__init__()
         self.optimizer = tf.optimizers.Adam()
         self.relations = []
-        self.syms = tuple()
+        self.syms = []
 
         for name, bound in kwargs['params'].items():
             self._set_param(name, bound)
@@ -38,6 +38,12 @@ class Sensor(tf.Module):
             )
         )
         getattr(self, name).bound = tuple(bound)
+        pass
+
+    def _get_param(self, name):
+        for var in self.trainable_variables:
+            if var.name == name:
+                return deepcopy(var)
         pass
 
     def _set_relation(self, rel):
@@ -84,25 +90,6 @@ class Sensor(tf.Module):
             return lmd_expr(*input_args)
 
         setattr(self, name, expr_fn)
-        pass
-
-    def _set_param(self, name, args):
-        setattr(
-                self, name,
-                tf.Variable(
-                    initial_value=np.mean(args['bound']),
-                    trainable=True,
-                    name=name
-                )
-            )
-        getattr(self, name).bound = args['bound']
-        getattr(self, name).relations = args['relations']
-        pass
-
-    def _get_param(self, name):
-        for var in self.trainable_variables:
-            if var.name == name:
-                return deepcopy(var)
         pass
 
     def summary(self):

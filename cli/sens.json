@@ -1,14 +1,12 @@
 {
     "Sensor_1": {
         "params": {
-            "a": {
-                "bound": [
-                    1,
-                    2
-                ],
-                "relations": []
-            }
+            "a": [
+                1,
+                2
+            ]
         },
+        "relations": [],
         "expressions": {},
         "footprint": "a",
         "IO": "a",

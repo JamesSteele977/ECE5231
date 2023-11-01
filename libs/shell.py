@@ -4,6 +4,7 @@ from libs.sensor import Sensor
 from libs.optim import Optim
 import libs.proc as proc
 import numpy as np
+import tensorflow as tf
 
 class ShellFn():
     def __init__(
@@ -55,7 +56,7 @@ class ShellFn():
 
             overwrite = str(input(f"Warning: Sensor {name} already exists. Overwrite? [y/n] ")).upper()
             while overwrite not in {'Y', 'N'}:
-                overwrite = str(input('Invalid response [y/n]')).upper()
+                overwrite = str(input(f"Invalid response {overwrite} [y/n] ")).upper()
 
             if overwrite.upper() == 'N':
                 print('Discarding configuration file')
@@ -65,22 +66,13 @@ class ShellFn():
         proc.write_json_dict(self.sens, sens)
         
         new_sensor = Sensor(**config)
-        self.sensors[name] = new_sensor
+        self.sensors[name] = {
+            'obj': new_sensor,
+            'savepath': None,
+            'IO': config['IO']
+        }
         print(f"Sensor {name} configured")
-        ready = self._sensor_ready(name)
-        if len(ready) != 0:
-            print(f"Sensor {name} not Optim-Ready; missing args: {new_sensor.ready['list']}")
         pass
-
-    def _sensor_ready(self, name: str) -> list:
-        if name not in self.sensors.keys():
-            raise KeyError(f"Sensor register does not contain key {name}")
-        vars = self.sensors[name].__dict__
-        # val_check = lambda val: True if (
-        #     (var in {""})
-        #     (val is None)
-        # )
-        # return [var for var, val in vars.items() if (val is None) else]
 
     def _configure_optim(self, name: str):
         self.optims[name] = Optim()
@@ -152,7 +144,7 @@ class UI(cmd.Cmd, ShellFn):
         try:
             args = parser.parse_args()
             self._configure_sensor(args.name)
-            print(f"-----{args.name}-----\n{self.sensors[args.name].summary()}")
+            print(f"-----{args.name}-----\n{self.sensors[args.name]['obj'].summary()}")
         except argparse.ArgumentError as e:
             print(str(e))
         except SystemExit:
@@ -218,9 +210,9 @@ class UI(cmd.Cmd, ShellFn):
         Summary of all sensors registered in < Sensor Design Optimization Shell >
         """
         tab = lambda x: x*'\t'
-        print(f"Name{tab(2)}|Saved{tab(2)}|Parameters{tab(2)}|IO{tab(2)}\n{'-'*32}")
+        print(f"Name{tab(2)}|Saved{tab(2)}|Parameters{tab(2)}|IO{tab(2)}\n{'-'*64}")
         for name, info in self.sensors.items():
-            print(f"{name[:17]}\t|{info['savepath']}")
+            print(f"{name[:17]}\t|{info['savepath']}{tab(2)}|{info['obj'].trainable_variables.numpy().tolist()}{tab(2)}|{info['IO']}")
         pass
     
     # GENERAL
