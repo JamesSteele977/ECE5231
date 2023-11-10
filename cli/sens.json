@@ -14,14 +14,15 @@
     },
     "Sensor_2": {
         "params": {
-            "t": {
-                "bound": [],
-                "init": null
-            }
+            "a": [
+                1,
+                2
+            ]
         },
+        "relations": [],
         "expressions": {},
-        "footprint": "",
-        "IO": "",
+        "footprint": "a",
+        "IO": "a",
         "README": ""
     }
 }

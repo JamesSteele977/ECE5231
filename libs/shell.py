@@ -69,7 +69,8 @@ class ShellFn():
         self.sensors[name] = {
             'obj': new_sensor,
             'savepath': None,
-            'IO': config['IO']
+            'IO': config['IO'],
+            'footprint': config['footprint']
         }
         print(f"Sensor {name} configured")
         pass
@@ -80,6 +81,12 @@ class ShellFn():
 
     def _save_solution(self, solution):
         pass
+
+    """ GEN """
+    def _rectify_tab(self, x, n: int) -> str:
+        tlen = (8*n+1)
+        x = str(x)[:tlen]
+        return x+(' '*(tlen-len(x)))
 
 class UI(cmd.Cmd, ShellFn):
     def __init__(
@@ -104,7 +111,7 @@ class UI(cmd.Cmd, ShellFn):
 
     # -------------------------------------------------------------------------------
     """ UI/NAV COMMANDS """
-    def do_clear(self, arg) -> None:
+    def do_clear(self, arg):
         """
         Clear the terminal
         """
@@ -114,13 +121,13 @@ class UI(cmd.Cmd, ShellFn):
             os.system('clear')
         pass
 
-    def do_exit(self, arg) -> None:
+    def do_exit(self, arg):
         """
         Exit the shell
         """
         return True
 
-    def do_readme(self, arg) -> None:
+    def do_readme(self, arg):
         """
         Detailed description of how to use < Sensor Design Optimization Shell >
         """
@@ -134,7 +141,7 @@ class UI(cmd.Cmd, ShellFn):
     # -------------------------------------------------------------------------------
     """ OBJECT COMMANDS """
     # SENSOR
-    def do_init_sensor(self, arg) -> None:
+    def do_init_sensor(self, arg):
         """
         Initializes new sensor object
         ["-n", "--name"] <name>: Optional name for sensor
@@ -151,7 +158,7 @@ class UI(cmd.Cmd, ShellFn):
             pass
         pass
 
-    def do_configure(self, arg) -> None:
+    def do_configure(self, arg):
         """
         Configure sensor object attributes
         <sensor>: Target sensor object
@@ -170,18 +177,29 @@ class UI(cmd.Cmd, ShellFn):
             pass
         pass
     
-    def do_sensors(self, arg) -> None:
+    def do_sensors(self, arg):
         """
         Summary of all sensors registered in < Sensor Design Optimization Shell >
         """
-        tab = lambda x: x*'\t'
-        print(f"Name{tab(2)}|Saved{tab(2)}|Parameters{tab(2)}|IO{tab(2)}\n{'-'*32}")
+        cats = {'Name':2, 'Saved':1, 'Parameters':4, 'IO':2, 'Footprint':2}
+        print('|'.join([self._rectify_tab(cat,len) for cat,len in cats.items()]))
+        print('-'*(sum(cats.values())*8))
         for name, info in self.sensors.items():
-            print(f"{name[:17]}\t|{info['savepath']}")
+            train_vars = self._rectify_tab(
+                ','.join([var.name for var in info['obj'].trainable_variables]),
+                cats['Parameters']
+            )
+            print('|'.join([
+                self._rectify_tab(name, cats['Name']),
+                self._rectify_tab(info['savepath'], cats['Saved']),
+                train_vars,
+                self._rectify_tab(info['IO'], cats['IO']),
+                self._rectify_tab(info['footprint'], cats['Footprint'])
+            ]))
         pass
     
     # OPTIMIZER
-    def do_optim(self, arg) -> None:
+    def do_optim(self, arg):
         """
         Optimizes design specified in sensor object 
         <sensor>: Target sensor object
@@ -203,16 +221,6 @@ class UI(cmd.Cmd, ShellFn):
             print(str(e))
         except SystemExit:
             pass
-        pass
-
-    def do_sensors(self, arg) -> None:
-        """
-        Summary of all sensors registered in < Sensor Design Optimization Shell >
-        """
-        tab = lambda x: x*'\t'
-        print(f"Name{tab(2)}|Saved{tab(2)}|Parameters{tab(2)}|IO{tab(2)}\n{'-'*64}")
-        for name, info in self.sensors.items():
-            print(f"{name[:17]}\t|{info['savepath']}{tab(2)}|{info['obj'].trainable_variables.numpy().tolist()}{tab(2)}|{info['IO']}")
         pass
     
     # GENERAL
