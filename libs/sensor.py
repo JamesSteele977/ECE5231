@@ -10,6 +10,12 @@ from libs.optim import Optim
 class Sensor(tf.Module):
     def __init__(self, **kwargs) -> None:
         super().__init__()
+        self.desc = {
+            'Parameters': kwargs['params'],
+            'IO': kwargs['IO'],
+            'Footprint': kwargs['footprint']
+        }
+
         self.optimizer = tf.optimizers.Adam()
         self.relations = []
         self.syms = []
@@ -90,9 +96,6 @@ class Sensor(tf.Module):
             return lmd_expr(*input_args)
 
         setattr(self, name, expr_fn)
-        pass
-
-    def summary(self):
         pass
 
     def _relation_enforcement(self, relation: SimpleNamespace, gradient, vars):

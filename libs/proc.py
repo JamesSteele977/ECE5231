@@ -1,5 +1,20 @@
 import json, os
 
+def deref_iter(obj):
+    if hasattr(obj, '__iter__'):
+        if isinstance(obj, str):
+            return obj
+        if isinstance(obj, dict):
+            return dict(obj)
+        elif isinstance(obj, tuple) or isinstance(obj, set) or isinstance(obj, list):
+            return tuple(obj)
+        else:
+            try:
+                return tuple(obj)
+            except TypeError:
+                pass
+    return obj
+
 def _check_path(path: str):
     if type(path) is not str:
         raise TypeError(f"Invalid argument type: {type(path)}")
@@ -20,12 +35,12 @@ def read_json(path: str) -> dict:
             data = json.load(f)
         return data
     except json.JSONDecodeError:
-        print("Incorrect formatting during read file {name}. Overwriting.")
+        print(f"Incorrect formatting during read file {path}. Overwriting.")
         with open(path, 'w') as f:
             json.dump({}, f)
         return {}
 
-def write_json_dict(path: str, data: dict):
+def write_json(path: str, data: dict):
     _check_(path, 'json')
     with open(path, 'w') as f:
         json.dump(data, f, indent=4)

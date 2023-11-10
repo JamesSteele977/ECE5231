@@ -4,4 +4,3 @@ from libs.shell import UI
 
 frontend = UI()
 frontend.cmdloop()
-

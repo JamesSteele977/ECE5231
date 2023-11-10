@@ -1,0 +1,18 @@
+{
+    "ShellFn": {
+        "temp_config": {
+            "params": {"":[]}, 
+            "relations": [],
+            "expressions": {},
+            "footprint": "",
+            "IO": ""
+        },
+
+        "paths": {
+            "tmp": "./cli/temp.json",
+            "sns": "./cli/sensors.json",
+            "opt": "./cli/optimizers.json",
+            "sol": "./cli/solutions.json"
+        }
+    }
+}
