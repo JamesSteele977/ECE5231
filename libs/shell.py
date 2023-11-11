@@ -14,12 +14,13 @@ class ShellFn():
                 ('sns', 'opt', 'sol'), (Sensor, Optim, Solve)
             )
         }
-        
-        for kw in ('sns', 'opt', 'sol'):
-            data = self._read_(kw)
-            for name, config in data.items():
-                self._ini_(kw, name, config)
 
+        self.to_kw = lambda arg: {
+            'sen': 'sns', 
+            'opt': 'opt', 
+            'sol': 'sol'
+        }.get(arg[:3].lower())
+        
         self.desc_cats = {
             'sns': {'Name':2, 'Parameters':4, 'IO':2, 'Footprint':2},
             'opt': {},
@@ -35,6 +36,11 @@ class ShellFn():
             self._clstr('dict'): lambda x: ' '.join([f"{self._pt(y)}:{self._pt(z)}" for y, z in x.items()]),
             self._clstr('tuple'): lambda x: ','.join([self._pt(y) for y in x])
         }
+
+        for kw in ('sns', 'opt', 'sol'):
+            saved = self._read_(kw)
+            for name, config in saved.items():
+                self._ini_(kw, name, config, verbose=False)
         pass
 
     def _check_(self, kw: str) -> None:
@@ -60,7 +66,7 @@ class ShellFn():
         proc.write_json(self._check_(kw), data)
         pass
 
-    def _ini_(self, kw: str, name: str, config: dict) -> None:
+    def _ini_(self, kw: str, name: str, config: dict, verbose: bool = True) -> None:
         obj = self.subobjs[kw]['ini'](**config)
         desc = obj.desc
         desc['Name'] = name
@@ -68,35 +74,66 @@ class ShellFn():
             'desc': desc,
             'obj': obj
         }
+        if verbose:
+            self._print_deschead(kw)
+            self._print_descline(kw, desc)
         pass
 
-    def _configure_sensor(self, name: str) -> None:
+    def _confirm(self, kw: str, name: str, head: str, msg: str) -> bool:
+        confirm = str(input(f"{head} {self.subobjs[kw]['ini'].__name__} {name} {msg} [y/n] ")).lower()
+        while confirm not in {'y', 'n'}:
+            confirm = str(input(f"Invalid response '{confirm}' [y/n] ")).lower()
+        if confirm == 'n':
+            print('Exiting process...')
+            return False
+        return True
+
+    def _delete_(self, kw: str, name: str) -> None:
         """
-        Configure sensor object's parameters and IO relationships
+        Delete sensor/optimizer/solution object
         """
-        sns = self._read_('sns')
-        if name in sns:
-            overwrite = str(input(f"Warning: Sensor {name} already exists. Overwrite? [y/n] ")).upper()
-            while overwrite not in {'Y', 'N'}:
-                overwrite = str(input(f"Invalid response '{overwrite}' [y/n] ")).upper()
-            if overwrite.upper() == 'N':
-                print('Exiting process...')
+        name = name.lower()
+        saved = self._read_(kw)
+
+        in_json = name in saved
+        in_subobjs = name in self.subobjs[kw]['saved']
+        if not(in_json or in_subobjs):
+            print(f"{self.subobjs[kw]['ini'].__name__} {name} does not exist.")
+            return
+        if not self._confirm(kw, name, 'Confirm action: Delete', '?'):
+            return
+        if in_json:
+            del saved[name]
+        if in_subobjs:
+            del self.subobjs[kw]['saved'][name]
+        self._write_(kw, saved)
+        pass
+
+    def _configure_(self, kw: str, name: str) -> None:
+        """
+        Configure old or create new sensor/optimzer object
+        """
+        if kw not in ('opt', 'sns'):
+            print(f"Cannot configure object type: {self.subobjs[kw]['ini'].__name__}")
+
+        name = name.lower()
+        saved = self._read_(kw)
+        if name in saved:
+            if not self._confirm(kw, name, 'Warning:', 'already exists. Overwrite?'):
                 return
             
+        temp = self.settings['temp_config'][kw]
+            
         while True:
-            self._write_('tmp', self.settings['temp_config'])
+            self._write_('tmp', temp)
             os.system(f"nano {self.settings['paths']['tmp']}")
             config = self._read_('tmp')
             if config != -1:
                 break
     
-        sns[name] = config
-        self._write_('sns', sns)
-        self._ini_('sns', name, config)
-        pass
-
-    def _configure_optim(self, name: str):
-        self.optims[name] = Optim()
+        saved[name] = config
+        self._write_(kw, saved)
+        self._ini_(kw, name, config)
         pass
 
     def _save_solution(self, solution):
@@ -105,6 +142,16 @@ class ShellFn():
     """ GRAPHICAL """
     def _print_descline(self, kw: str, desc: dict) -> None:
         print('|'.join([self._pt(desc[key])[:l*8].ljust(l*8) for key, l in self.desc_cats[kw].items()]))
+        pass
+
+    def _print_deschead(self, kw: str) -> None:
+        if len(self.subobjs[kw]['saved']) != 0:
+            print(
+                '|'.join([cat.ljust(l*8) for cat,l in self.desc_cats[kw].items()])\
+                +'\n'+'-'*((sum(self.desc_cats[kw].values())+1)*8)
+            )
+        else:
+            print("< none >")
         pass
 
 class UI(cmd.Cmd, ShellFn):
@@ -159,59 +206,19 @@ class UI(cmd.Cmd, ShellFn):
 
     # -------------------------------------------------------------------------------
     """ OBJECT COMMANDS """
-    # SENSOR
-    def do_init_sensor(self, arg):
-        """
-        Initializes new sensor object
-        ["-n", "--name"] <name>: Optional name for sensor
-        """
-        parser = argparse.ArgumentParser()
-        parser.add_argument("-n", "--name", default=f"Sensor_{len(self.subobjs['sns']['saved'])+1}")
-        try:
-            args = parser.parse_args()
-            self._configure_sensor(args.name)
-            self._print_descline(args.name)
-        except argparse.ArgumentError as e:
-            print(str(e))
-        except SystemExit:
-            pass
-        pass
-
-    def do_configure(self, arg):
-        """
-        Configure sensor object attributes
-        <sensor>: Target sensor object
-        """
-        parser = argparse.ArgumentParser()
-        parser.add_argument('sensor')
-        try:
-            args = parser.parse_args(arg.split())
-            self._configure_sensor(args.sensor)
-        except argparse.ArgumentError as e:
-            print(e)
-        except SystemExit:
-            pass
-        pass
-    
     def do_list(self, arg):
         """
-        Summary of all sensors registered in < Sensor Design Optimization Shell >
+        Summary of all objects of given type registered in < Sensor Design Optimization Shell >
+        <which>: Object type to list
         """
         parser = argparse.ArgumentParser()
-        parser.add_argument('which')
-        to_kw = lambda arg: {'sensors': 'sns', 'optimizers': 'opt', 'solutions': 'sol'}.get(arg)
+        parser.add_argument('which', help='Object type to list [Sensor, Optimizer, Solution]')
         try:
             args = parser.parse_args(arg.split())
-            kw = to_kw(args.which)
-            if len(self.subobjs[kw]['saved']) != 0:
-                print(
-                    '|'.join([cat.ljust(l*8) for cat,l in self.desc_cats[kw].items()])\
-                    +'\n'+'-'*((sum(self.desc_cats[kw].values())+1)*8)
-                )
-                for entry in self.subobjs['sns']['saved'].values():
-                    self._print_descline(kw, entry['desc'])
-            else:
-                print("< none >")
+            kw = self.to_kw(args.which)
+            self._print_deschead(kw)
+            for entry in self.subobjs[kw]['saved'].values():
+                self._print_descline(kw, entry['desc'])
         except KeyError as e:
             print(e)
         except argparse.ArgumentError as e:
@@ -220,13 +227,52 @@ class UI(cmd.Cmd, ShellFn):
             pass
         pass
     
-    # OPTIMIZER
-    def do_optim(self, arg):
+    def do_delete(self, arg):
+        """
+        Delete object saved in memory (Sensor, Optimizer, or Solution)
+        <which>: Object type to delete
+        <name>: Name of object to delete
+        """
+        parser = argparse.ArgumentParser()
+        parser.add_argument('which', help='Object type to list [Sensor, Optimizer, Solution]')
+        parser.add_argument('name', help='Name of object to delete')
+        try:
+            args = parser.parse_args(arg.split())
+            self._delete_(self.to_kw(args.which), args.name)
+        except KeyError as e:
+            print(e)
+        except argparse.ArgumentError as e:
+            print(e)
+        except SystemExit:
+            pass
+        pass
+
+    def do_configure(self, arg):
+        """
+        Configure sensor object attributes
+        <which>: Object type
+        ["-n", "--name"] <name>: Name of object to configure
+        """
+        parser = argparse.ArgumentParser()
+        parser.add_argument('which', help='Object type to list [Sensor, Optimizer, Solution]')
+        parser.add_argument('-n', '--name', help='Name of object to delete')
+        try:
+            args = parser.parse_args(arg.split())
+            kw = self.to_kw(args.which)
+            if args.name is None:
+                args.name = f"{self.subobjs[kw]['ini'].__name__}_{len(self.subobjs[kw]['saved'])+1}"
+            self._configure_(kw, args.name)
+        except argparse.ArgumentError as e:
+            print(e)
+        except SystemExit:
+            pass
+        pass
+    
+    def do_fit(self, arg):
         """
         Optimizes design specified in sensor object 
         <sensor>: Target sensor object
         ["-o", "--optimizer"] <optimizer>: Custom optimizer
-        ["-sv", "--save"]: Save optimization results, accessable through "open" with ["-sol, --solution"] flag
         """ 
         parser = argparse.ArgumentParser()
         parser.add_argument('sensor')

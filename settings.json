@@ -1,11 +1,14 @@
 {
     "ShellFn": {
         "temp_config": {
-            "params": {"":[]}, 
-            "relations": [],
-            "expressions": {},
-            "footprint": "",
-            "IO": ""
+            "sns": {
+                "params": {"":[]}, 
+                "relations": [],
+                "expressions": {},
+                "footprint": "",
+                "IO": ""
+            },
+            "opt": {}
         },
 
         "paths": {
