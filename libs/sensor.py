@@ -86,3 +86,6 @@ class Sensor(tf.Module):
 
         setattr(self, name, expr_fn)
         pass
+
+    def _get_tvars(self):
+        return np.array([var.value.numpy() for var in self.trainable_variables])

@@ -68,20 +68,57 @@ class Optim(tf.Module):
     def _train_step(self):
         with tf.GradientTape() as tape:
             tape.watch(self.sensor.trainable_variables)
-        grads = tape.gradient(self._get_loss(), self.sensor.trainable_variables)
-        self.optimizer.apply_gradients(zip(grads, self.sensor.trainable_variables))
-        self._rels_(gradient)
+        self.pargrad[self._grd_()] = tape.gradient(self._get_loss(), self.sensor.trainable_variables)
+        self.optimizer.apply_gradients(zip(self.pargrad[self._grd_()], self.sensor.trainable_variables))
+        self._rels_()
         self._clip_()
+        self.pargrad[self._par_()] = self.sensor._get_tvars()
         pass
 
     def fit(self, sensor):
         self = self.__init__(self.reset)
         self.sensor = sensor
         Solve.__init__(self)
-        for _ in tqdm(range(self.epochs), desc="Fitting... "):
+        for i in tqdm(range(self.epochs), desc="Fitting... "):
+            self.epoch = i
             self._train_step()
-        return self.solution
+        return self._get_solution()
 
 class Solve():
     def __init__(self) -> None:
+        # Array of tracked variables (loss, factor, mse, footprint, loss_weights(3))
+        self.tracked = np.empty((self.epochs, 7), dtype=np.float32)
+        # Array of parameters and associated gradients
+        self.pargrad = np.empty(
+            (self.epochs, len(self.trainable_variables), 2),
+            dtype=np.float32
+        )
+        pass
+
+    """ Slicing """
+    def _s_(self, s: slice) -> slice:
+        return np.s_[self.epoch][s]
+    def _grd_(self):
+        return self._s_(np.s_[:,1])
+    def _par_(self):
+        return self._s_(np.s_[:,0])
+    def _lss_(self):
+        return self._s_(np.s_[0])
+    def _fac_(self):
+        return self._s_(np.s_[1])
+    def _mse_(self):
+        return self._s_(np.s_[2])
+    def _ftp_(self):
+        return self._s_(np.s_[3])
+    def _lwf_(self):
+        return self._s_(np.s_[4])
+    def _lwm_(self):
+        return self._s_(np.s_[5])
+    def _lwp_(self):
+        return self._s_(np.s_[6])
+    
+    def _get_solution(self) -> tuple:
+        return (self.tracked, self.params, )
+
+    def plot(self) -> None:
         pass
