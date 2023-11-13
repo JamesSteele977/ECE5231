@@ -117,6 +117,7 @@ class Solve():
     def _lwp_(self):
         return self._s_(np.s_[6])
     
+    """ Data Retrieval """
     def _get_solution(self) -> tuple:
         return (self.tracked, self.params, )
 
