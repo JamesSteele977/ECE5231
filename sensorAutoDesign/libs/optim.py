@@ -22,8 +22,8 @@ class Optim(tf.Module):
     """ LOSS """
     def _get_mse(self) -> tf.float32:
         return tf.square(
-            self.response[self._s_('response')]-(self.tracked[self._s_(*domain+response[0]))\
-                /(domain[-1]-domain[0]
+            self.response[self._s_('response')]-(self.tracked[self._s_(*domain+response[0])])\
+                /(self.input[-1]-self.input[0])
             )
     
     def _get_factor(self) -> tf.float32:
@@ -91,21 +91,21 @@ class Solve():
     def __init__(self) -> None:
         # Array of tracked variables (loss, factor, mse, footprint, loss_weights(3))
         self.tracked = np.empty((self.epochs, 7), dtype=np.float32)
-        # Array of IO curves
-        self.response = np.empty(
-            (self.epochs, int(self.sensor.bandwidth*self.dI)),
-            dtype=np.float32
-        )
-        # Array of parameters and associated gradients
-        self.pargrad = np.empty(
-            (self.epochs, len(self.sensor.trainable_variables), 2),
-            dtype=np.float32
-        )
         # Input range based on bandwidth and sampling rate
         self.input = np.arange(
             self.sensor.bandwidth[0],
             self.sensor.bandwidth[1],
             self.dI,
+            dtype=np.float32
+        )
+        # Array of IO curves
+        self.response = np.empty(
+            (self.epochs, self.input.shape[-1]),
+            dtype=np.float32
+        )
+        # Array of parameters and associated gradients
+        self.pargrad = np.empty(
+            (self.epochs, len(self.sensor.trainable_variables), 2),
             dtype=np.float32
         )
         self.slice_case = lambda x: {

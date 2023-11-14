@@ -14,6 +14,7 @@ if __name__ == '__main__':
         "relations": ["y < x"],
         "expressions": {"z": "x*y"},
         "footprint": "z^2",
+        "bandwidth": [0, 100],
         "IO": "x*y+z"
     }
     optim_config = {

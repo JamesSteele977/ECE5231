@@ -33,7 +33,7 @@ class Sensor(tf.Module):
 
     def _get_param(self, name):
         for var in self.trainable_variables:
-            if var.name == name:
+            if var.name.split(':')[0] == name:
                 return deepcopy(var)
         pass
 
@@ -90,8 +90,8 @@ class Sensor(tf.Module):
     def _set_expr(self, name, expr):
         lmd_expr, lmd_args = self._lmds(name, expr)
 
-        def expr_fn(self):
-            input_args = [self._get_param(name) for name in lmd_args]
+        def expr_fn():
+            input_args = [self._get_param(str(name)) for name in lmd_args]
             if None in input_args:
                 missing_args = [name for idx, name in enumerate(lmd_args) if input_args[idx] is None]
                 raise ValueError(f"Missing keyword arguments: {', '.join(missing_args)}")
@@ -104,10 +104,10 @@ class Sensor(tf.Module):
         name = '_get_IO'
         lmd_expr, lmd_args = self._lmds(name, expr)
 
-        def IO_fn(self):
-            input_args = [self._get_param(name) for name in lmd_args if name.lower() != 'input']
+        def IO_fn():
+            input_args = [self._get_param(str(name)) for name in lmd_args if str(name).lower() != 'input']
             if None in input_args:
-                missing_args = [name for idx, name in enumerate(lmd_args) if input_args[idx] is None]
+                missing_args = [str(name) for idx, name in enumerate(lmd_args) if input_args[idx] is None]
                 raise ValueError(f"Missing keyword arguments: {', '.join(missing_args)}")
             return lmd_expr(*input_args, self.input)
 
