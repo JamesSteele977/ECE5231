@@ -2,30 +2,39 @@ import numpy as np
 import tensorflow as tf
 from sympy import sympify, lambdify, symbols, solve
 from types import SimpleNamespace
+from copy import deepcopy
 
 class Sensor(tf.Module):
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, config) -> None:
         super().__init__()
         self.desc = {
-            'Parameters': kwargs['params'],
-            'IO': kwargs['IO'],
-            'Footprint': kwargs['footprint']
+            'Parameters': config['params'],
+            'IO': config['IO'],
+            'Footprint': config['footprint'],
+            'Bandwidth': config['bandwidth']
         }
 
+        self.bandwidth = tuple([float(i) for i in config['bandwidth']])
         self.relations = []
         self.syms = []
 
-        for name, bound in kwargs['params'].items():
+        for name, bound in config['params'].items():
             self._set_param(name, bound)
 
-        for name, expr in kwargs['expressions'].items():
+        for name, expr in config['expressions'].items():
             self._set_expr(name, expr)
         
-        for rel in kwargs['relations']:
+        for rel in config['relations']:
             self._set_relation(rel)
 
-        self._IO = lambdify(self.syms, sympify(kwargs['IO']))
-        self._footprint = lambdify(self.syms, sympify(kwargs['footprint']))
+        self._set_IO(config['IO'])
+        self._set_expr('_get_footprint', config['footprint'])
+        pass
+
+    def _get_param(self, name):
+        for var in self.trainable_variables:
+            if var.name == name:
+                return deepcopy(var)
         pass
 
     def _set_param(self, name: str, bound: list) -> None:
@@ -71,11 +80,15 @@ class Sensor(tf.Module):
         )
         pass
 
-    def _set_expr(self, name, expr):
+    def _lmds(self, name, expr):
         self.syms.append(symbols(name))
         sym_expr = sympify(expr)
         lmd_expr = lambdify(self.syms, sym_expr)
         lmd_args = list(sym_expr.free_symbols)
+        return lmd_expr, lmd_args
+
+    def _set_expr(self, name, expr):
+        lmd_expr, lmd_args = self._lmds(name, expr)
 
         def expr_fn(self):
             input_args = [self._get_param(name) for name in lmd_args]
@@ -86,6 +99,19 @@ class Sensor(tf.Module):
 
         setattr(self, name, expr_fn)
         pass
+
+    def _set_IO(self, expr):
+        name = '_get_IO'
+        lmd_expr, lmd_args = self._lmds(name, expr)
+
+        def IO_fn(self):
+            input_args = [self._get_param(name) for name in lmd_args if name.lower() != 'input']
+            if None in input_args:
+                missing_args = [name for idx, name in enumerate(lmd_args) if input_args[idx] is None]
+                raise ValueError(f"Missing keyword arguments: {', '.join(missing_args)}")
+            return lmd_expr(*input_args, self.input)
+
+        setattr(self, name, IO_fn)
 
     def _get_tvars(self):
         return np.array([var.value.numpy() for var in self.trainable_variables])

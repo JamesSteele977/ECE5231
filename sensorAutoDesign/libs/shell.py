@@ -1,10 +1,8 @@
 import cmd, os, argparse, json
 from typing import IO
-from libs.sensor import Sensor
-from libs.optim import Optim, Solve
+from .sensor import Sensor
+from .optim import Optim, Solve
 import libs.proc as proc
-import numpy as np
-import tensorflow as tf
 
 class ShellFn():
     def __init__(self, settings: str = './settings.json') -> None:
@@ -22,7 +20,7 @@ class ShellFn():
         }.get(arg[:3].lower())
         
         self.desc_cats = {
-            'sns': {'Name':2, 'Parameters':4, 'IO':2, 'Footprint':2},
+            'sns': {'Name':2, 'Parameters':4, 'IO':2, 'Footprint':2, 'Bandwidth':2},
             'opt': {},
             'sol': {}
         }

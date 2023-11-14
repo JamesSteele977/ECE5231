@@ -6,9 +6,15 @@
                 "relations": [],
                 "expressions": {},
                 "footprint": "",
+                "bandwidth": [],
                 "IO": ""
             },
-            "opt": {}
+            "opt": {
+                "optimizer": "",
+                "learning_rate": null,
+                "epochs": null,
+                "dI": null
+            }
         },
 
         "paths": {
