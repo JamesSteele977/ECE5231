@@ -1,10 +1,20 @@
 {
     "configurations": [
+
         {
             "name": "MAIN",
             "type": "python",
             "request": "launch",
             "program": "./main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+
+        {
+            "name": "TEST-optim",
+            "type": "python",
+            "request": "launch",
+            "program": "./tests/optim_test.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }

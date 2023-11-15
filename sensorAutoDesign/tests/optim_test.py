@@ -15,7 +15,8 @@ if __name__ == '__main__':
         "expressions": {"z": "x*y"},
         "footprint": "z^2",
         "bandwidth": [0, 100],
-        "IO": "x*y+z"
+        "input_sym": "I",
+        "IO": "(x*y+z)*I"
     }
     optim_config = {
         "optimizer": 'Adam',

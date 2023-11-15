@@ -7,6 +7,7 @@
                 "expressions": {},
                 "footprint": "",
                 "bandwidth": [],
+                "input_sym": "",
                 "IO": ""
             },
             "opt": {

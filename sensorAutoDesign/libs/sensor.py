@@ -14,6 +14,7 @@ class Sensor(tf.Module):
             'Bandwidth': config['bandwidth']
         }
 
+        self.input_sym = config['input_sym']
         self.bandwidth = tuple([float(i) for i in config['bandwidth']])
         self.relations = []
         self.syms = []
@@ -92,24 +93,21 @@ class Sensor(tf.Module):
 
         def expr_fn():
             input_args = [self._get_param(str(name)) for name in lmd_args]
-            if None in input_args:
-                missing_args = [name for idx, name in enumerate(lmd_args) if input_args[idx] is None]
-                raise ValueError(f"Missing keyword arguments: {', '.join(missing_args)}")
             return lmd_expr(*input_args)
 
-        setattr(self, name, expr_fn)
+        setattr(self, name, deepcopy(expr_fn))
         pass
 
     def _set_IO(self, expr):
         name = '_get_IO'
         lmd_expr, lmd_args = self._lmds(name, expr)
+        get_args = lambda x: self._get_param(x) if (
+            (x.lower() != self.input_sym) and (self._get_param(x) is not None)
+        ) else getattr(self, x)
 
         def IO_fn():
-            input_args = [self._get_param(str(name)) for name in lmd_args if str(name).lower() != 'input']
-            if None in input_args:
-                missing_args = [str(name) for idx, name in enumerate(lmd_args) if input_args[idx] is None]
-                raise ValueError(f"Missing keyword arguments: {', '.join(missing_args)}")
-            return lmd_expr(*input_args, self.input)
+            input_args = [get_args(str(name)) for name in lmd_args]
+            return lmd_expr(*input_args, getattr(self.optim, self.input_sym))
 
         setattr(self, name, IO_fn)
 
