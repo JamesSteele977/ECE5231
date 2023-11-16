@@ -12,7 +12,6 @@ if __name__ == '__main__':
             "y": [0, 4]
         },
         "relations": ["y < x"],
-        "expressions": {"z": "x*y"},
         "footprint": "z^2",
         "bandwidth": [0, 100],
         "input_sym": "I",

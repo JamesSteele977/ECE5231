@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from sympy import sympify, lambdify, symbols, solve
+from sympy import sympify, lambdify, symbols, solve, Expr
 from types import SimpleNamespace
 from copy import deepcopy
 from dataclasses import dataclass
@@ -10,6 +10,7 @@ from typing import Tuple, Dict, Callable
 class ParameterRelationship():
     boolean_evaluation: Callable[[Tuple[tf.Variable, ...]], bool]
     substitution_solve: Callable[[Tuple[tf.Variable, ...]], float]
+    sympy_expression: Expr
 
 @dataclass
 class SensorProfile():
@@ -40,9 +41,6 @@ class Sensor(tf.Module):
 
         for name, bound in config['params'].items():
             self._set_param(name, bound)
-
-        for name, expr in config['expressions'].items():
-            self._set_expr(name, expr)
         
         for rel in config['relations']:
             self._set_relation(rel)
@@ -84,12 +82,7 @@ class Sensor(tf.Module):
             solution = solve(sym_expr.subs(input_args), x)
             return solution
 
-        self.relations.append(
-            SimpleNamespace(
-                eval=rel_bool,
-                path=rel_path
-            )
-        )
+        self.parameter_relationships.append(ParameterRelationship(rel_bool, rel_path, sym_expr))
         pass
 
     def _lmds(self, name, expr):

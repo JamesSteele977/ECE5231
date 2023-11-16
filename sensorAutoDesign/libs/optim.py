@@ -14,7 +14,12 @@ class OptimConfig:
     optimizer: str
     epochs: int
     bandwidth_sampling_rate: float
+    relationship_sampling_rate: float
     learning_rate: float
+
+    initial_sensitivity_loss_weight: float
+    initial_mean_squared_error_loss_weight: float
+    initial_footprint_loss_weight: float
 
 class TfOptimizer(Enum):
     ADAM: str = 'adam'
@@ -32,7 +37,7 @@ class Optim(tf.Module, Solution):
         for variable_name, bounds in self.sensor_profile.trainable_variables.items():
             self._set_trainable_variable(variable_name, bounds)
 
-        self.epoch: int = -1
+        self.epoch: int = 0
         self.sensor_input: np.ndarray = tf.range(
             self.sensor_profile.bandwidth[0],
             self.sensor_profile.bandwidth[-1],
@@ -45,6 +50,19 @@ class Optim(tf.Module, Solution):
             n_trainable_variables=len(self.trainable_variables),
             bandwidth=sensor_profile.bandwidth,
             epochs=self.optim_config.epochs
+        )
+
+        self._set_state_variable(
+            StateVariable.SENSITIVITY_LOSS_WEIGHT, 
+            self.optim_config.initial_sensitivity_loss_weight
+        )
+        self._set_state_variable(
+            StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT, 
+            self.optim_config.initial_mean_squared_error_loss_weight
+        )
+        self._set_state_variable(
+            StateVariable.FOOTPRINT_LOSS_WEIGHT, 
+            self.optim_config.initial_footprint_loss_weight
         )
         pass
 
@@ -88,21 +106,16 @@ class Optim(tf.Module, Solution):
         + self._get_mean_squared_error() * self._get_state_variable(StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT)\
         + self.sensor_profile._get_footprint(self.trainable_variables) * self._get_state_variable(StateVariable.FOOTPRINT_LOSS_WEIGHT)
 
-    # def _evaulate_relationship(self, ):
-
-
     def _enforce_parameter_relationships(self):
         for relationship in self.sensor_profile.parameter_relationships:
-            if relationship.boolean_evaluation(self.trainable_variables)
+            if relationship.boolean_evaluation(self.trainable_variables):
+                continue
+            
+            sampled_points: list = []
+            for symbol in relationship.sympy_expression.free_symbols:
+                bounds: Tuple[float, float] = self.sensor_profile.trainable_variables[str(symbol)]
+                sampled_points.append(np.arange(bounds[0], bounds[-1], self.optim_config.relationship_sampling_rate))
 
-
-
-            return vars
-        rel_params = list(relation.path.free_symbols)
-        sampled_points = []
-        for param in rel_params:
-            bound = getattr(self, param).bound
-            sampled_points.append(np.arange(bound[1], bound[2], self.rel_fs))
         min_distance = np.inf
         closest_point = {}
         for values in np.nditer(np.meshgrid(*sampled_points)):
@@ -127,6 +140,11 @@ class Optim(tf.Module, Solution):
         pass
 
     def _train_step(self):
+        self._set_state_variable(
+            StateVariable.TRAINABLE_VARIABLES,
+            self._dereference_trainable_variables(self.trainable_variables)
+        )
+
         with tf.GradientTape() as tape:
             tape.watch(self.trainable_variables)
         
@@ -147,11 +165,6 @@ class Optim(tf.Module, Solution):
         self._enforce_parameter_relationships()
         self._clip_trainable_variables_to_boundaries()
         self._update_loss_component_weights()
-
-        self._set_state_variable(
-            StateVariable.TRAINABLE_VARIABLES,
-            self._dereference_trainable_variables(self.trainable_variables)
-        )
         pass
 
     def __call__(self):
