@@ -1,63 +1,77 @@
 import numpy as np
 import tensorflow as tf
 from sympy import sympify, lambdify, symbols, solve, Expr
-from types import SimpleNamespace
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Tuple, Dict, Callable
+from enum import Enum
+
+def EvalType(returns: type) -> type:
+    return Callable[[Tuple[tf.Variable, ...]], returns]
+
+@dataclass
+class SensorBasicInfo():
+    trainable_variables: Dict[str, Tuple[float, float]]
+    bandwidth: Tuple[float, float]
+    input_symbol: str
+
+@dataclass
+class SensorConfig(SensorBasicInfo):
+    parameter_relationships: Tuple[str, ...]
+    footprint: str
+    response: str
 
 @dataclass
 class ParameterRelationship():
-    boolean_evaluation: Callable[[Tuple[tf.Variable, ...]], bool]
-    substitution_solve: Callable[[Tuple[tf.Variable, ...]], float]
+    boolean_evaluation: EvalType(bool)
+    substitution_solve: EvalType(float)
     sympy_expression: Expr
 
 @dataclass
-class SensorProfile():
-    trainable_variables: Dict[str, Tuple[float, float]]
-    bandwidth: Tuple[float, float]
-
+class SensorProfile(SensorBasicInfo):
     parameter_relationships: Tuple[ParameterRelationship, ...]
-
     _get_footprint: Callable[[Tuple[tf.Variable, ...]], tf.float32]
     _get_response: Callable[[Tuple[tf.Variable, ...], tf.Tensor], tf.Tensor]
 
-class Sensor(tf.Module):
-    def __init__(self, config) -> None:
-        super().__init__()
-        self.desc = {
-            'Parameters': config['params'],
-            'IO': config['IO'],
-            'Footprint': config['footprint'],
-            'Bandwidth': config['bandwidth']
+class SensorDescription(Enum):
+    TRAINABLE_VARIABLES: str = 'trainable_variables'
+    BANDWIDTH: str = 'bandwidth'
+
+    PARAMETER_RELATIONSHIPS: str = 'parameter_relationships'
+
+    FOOTPRINT: str = 'footprint'
+    INPUT_SYMBOL: str = 'input_symbol'
+    RESPONSE: str = 'response'
+
+class Sensor():
+    def __init__(self, sensor_config: SensorConfig) -> None:
+        self.shell_descritpion = {
+            SensorDescription.TRAINABLE_VARIABLES: sensor_config.trainable_variables,
+            SensorDescription.BANDWIDTH: sensor_config.bandwidth,
+
+            SensorDescription.PARAMETER_RELATIONSHIPS: sensor_config.parameter_relationships,
+
+            SensorDescription.FOOTPRINT: sensor_config.footprint,
+            SensorDescription.INPUT_SYMBOL: sensor_config.input_symbol,
+            SensorDescription.RESPONSE: sensor_config.response
         }
 
-        self.input_sym: str = config['input_sym']
-        self.bandwidth: tuple = tuple([float(i) for i in config['bandwidth']])
-
-        self.relations: list = []
-        self.symbols: list = []
-        self.parameters: list = []
-
-        for name, bound in config['params'].items():
-            self._set_param(name, bound)
+        self.symbols = symbols(list(sensor_config.trainable_variables.keys()))
+        self.parameter_relationships = []
+        for relationship in sensor_config.parameter_relationships:
+            self._set_parameter_relationship(relationship)
         
-        for rel in config['relations']:
-            self._set_relation(rel)
+        self._set_footprint(sensor_config.footprint)
+        self._set_response(sensor_config.response)
 
-        self._set_IO(config['IO'])
-        self._set_expr('_get_footprint', config['footprint'])
-        pass
+        self.sensor_profile = SensorProfile(
+            sensor_config.trainable_variables,
+            sensor_config.bandwidth,
+            sensor_config.input_symbol,
 
-    def _get_param(self, name):
-        for var in self.trainable_variables:
-            if var.name.split(':')[0] == name:
-                return deepcopy(var)
-        pass
+            
+        )
 
-    def _set_param(self, name: str, bound: list) -> None:
-        self.syms.append(symbols(name))
-        self.parameters.append()
         pass
 
     def _set_relation(self, rel):
@@ -85,15 +99,14 @@ class Sensor(tf.Module):
         self.parameter_relationships.append(ParameterRelationship(rel_bool, rel_path, sym_expr))
         pass
 
-    def _lmds(self, name, expr):
-        self.syms.append(symbols(name))
-        sym_expr = sympify(expr)
-        lmd_expr = lambdify(self.syms, sym_expr)
-        lmd_args = list(sym_expr.free_symbols)
-        return lmd_expr, lmd_args
+    def _lambdify_parse_args(self, expression: str) -> Tuple[EvalType(float), Tuple[str, ...]]:
+        sympy_expression: Expr = sympify(expression)
+        lambda_function = lambdify(self.symbols, sympy_expression)
+        lambda_arguments = tuple(sympy_expression.free_symbols)
+        return lambda_function, lambda_arguments
 
-    def _set_expr(self, name, expr):
-        lmd_expr, lmd_args = self._lmds(name, expr)
+    def _set_footprint(self, expression: str) -> None:
+        lambda_funtion, arguments = self._lambdify_parse_args(expression)
 
         def expr_fn():
             input_args = [self._get_param(str(name)) for name in lmd_args]
@@ -102,7 +115,7 @@ class Sensor(tf.Module):
         setattr(self, name, deepcopy(expr_fn))
         pass
 
-    def _set_IO(self, expr):
+    def _set_response(self, expr):
         name = '_get_IO'
         lmd_expr, lmd_args = self._lmds(name, expr)
         get_args = lambda x: self._get_param(x) if (
@@ -117,3 +130,6 @@ class Sensor(tf.Module):
 
     def _get_tvars(self):
         return np.array([var.value.numpy() for var in self.trainable_variables])
+
+    def _get_sensor_profile(self):
+        return SensorProfile(self.trainable_variables)

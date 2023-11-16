@@ -3,9 +3,23 @@ from typing import IO
 from .sensor import Sensor
 from .optim import Optim, Solve
 import libs.proc as proc
+from enum import Enum
+from dataclasses import dataclass
+
+class ShellPath(Enum):
+    TEMP: str = './cli/temp.json'
+    SENSORS: str = './cli/sensors.json'
+    OPTIMIZERS: str = './cli/optimizers.json'
+    SOLUTIONS: str = './cli/solutions.json'
+
+    SETTINGS: str = './settings.json'
+
+@dataclass
+class ShellSettings:
+    
 
 class ShellFn():
-    def __init__(self, settings: str = './settings.json') -> None:
+    def __init__(self, settings: str = ShellPath.SETTINGS) -> None:
         self.settings = proc.read_json(settings)[ShellFn.__name__]
         self.subobjs = {
             kw: {'ini': _class, 'saved': {}} for kw, _class in zip(

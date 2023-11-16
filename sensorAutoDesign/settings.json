@@ -1,28 +1,20 @@
 {
     "ShellFn": {
-        "temp_config": {
-            "sns": {
+        "configuration_file_templates": {
+            "sensor_config": {
                 "params": {"":[]}, 
-                "relations": [],
-                "expressions": {},
+                "parameter_relationships": [],
                 "footprint": "",
                 "bandwidth": [],
-                "input_sym": "",
-                "IO": ""
+                "input_symbol": "",
+                "response": ""
             },
-            "opt": {
+            "optim_config": {
                 "optimizer": "",
                 "learning_rate": null,
                 "epochs": null,
                 "dI": null
             }
-        },
-
-        "paths": {
-            "tmp": "./cli/temp.json",
-            "sns": "./cli/sensors.json",
-            "opt": "./cli/optimizers.json",
-            "sol": "./cli/solutions.json"
         }
     }
 }
