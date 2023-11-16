@@ -3,6 +3,23 @@ import tensorflow as tf
 from sympy import sympify, lambdify, symbols, solve
 from types import SimpleNamespace
 from copy import deepcopy
+from dataclasses import dataclass
+from typing import Tuple, Dict, Callable
+
+@dataclass
+class ParameterRelationship():
+    boolean_evaluation: Callable[[Tuple[tf.Variable, ...]], bool]
+    substitution_solve: Callable[[Tuple[tf.Variable, ...]], float]
+
+@dataclass
+class SensorProfile():
+    trainable_variables: Dict[str, Tuple[float, float]]
+    bandwidth: Tuple[float, float]
+
+    parameter_relationships: Tuple[ParameterRelationship, ...]
+
+    _get_footprint: Callable[[Tuple[tf.Variable, ...]], tf.float32]
+    _get_response: Callable[[Tuple[tf.Variable, ...], tf.Tensor], tf.Tensor]
 
 class Sensor(tf.Module):
     def __init__(self, config) -> None:
@@ -14,10 +31,12 @@ class Sensor(tf.Module):
             'Bandwidth': config['bandwidth']
         }
 
-        self.input_sym = config['input_sym']
-        self.bandwidth = tuple([float(i) for i in config['bandwidth']])
-        self.relations = []
-        self.syms = []
+        self.input_sym: str = config['input_sym']
+        self.bandwidth: tuple = tuple([float(i) for i in config['bandwidth']])
+
+        self.relations: list = []
+        self.symbols: list = []
+        self.parameters: list = []
 
         for name, bound in config['params'].items():
             self._set_param(name, bound)
@@ -40,15 +59,7 @@ class Sensor(tf.Module):
 
     def _set_param(self, name: str, bound: list) -> None:
         self.syms.append(symbols(name))
-        setattr(
-            self, name,
-            tf.Variable(
-                initial_value=np.mean(bound),
-                trainable=True,
-                name=name
-            )
-        )
-        getattr(self, name).bound = tuple(bound)
+        self.parameters.append()
         pass
 
     def _set_relation(self, rel):
