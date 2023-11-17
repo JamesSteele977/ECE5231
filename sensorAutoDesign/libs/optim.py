@@ -42,12 +42,13 @@ class Optim(tf.Module, Solution):
         Solution.__init__(self, len(self.trainable_variables), sensor_profile.bandwidth, self.optim_config.epochs)
         pass
 
+    # -------------------------------------------------------------------------------------------
     """ INIT """
     def _set_sensor_input(self) -> None:
         self.sensor_input: tf.Tensor = tf.range(
             self.sensor_profile.bandwidth[0],
             self.sensor_profile.bandwidth[-1],
-            1/self.optim_config.bandwidth_sampling_rate,
+            1 / self.optim_config.bandwidth_sampling_rate,
             dtype=tf.float32
         )
         pass
@@ -83,8 +84,8 @@ class Optim(tf.Module, Solution):
         setattr(self, variable_name, variable)
         pass
     
+    # -------------------------------------------------------------------------------------------
     """ CALL """
-
     def _get_mean_squared_error(self) -> tf.float32:
         response = self._get_state_variable(StateVariable.RESPONSE)
         mean_squared_error = tf.square(
@@ -141,11 +142,11 @@ class Optim(tf.Module, Solution):
     def _update_loss_component_weights(self):
         pass
 
+    def _dereference_trainable_variables(self, trainable_variables: Tuple[tf.Variable, ...]) -> np.ndarray:
+        return np.array([variable.numpy() for variable in trainable_variables], dtype=np.float32)
+
     def _train_step(self):
-        self._set_state_variable(
-            StateVariable.TRAINABLE_VARIABLES,
-            self._dereference_trainable_variables(self.trainable_variables)
-        )
+        self._set_state_variable(StateVariable.TRAINABLE_VARIABLES, self._dereference_trainable_variables(self.trainable_variables))
 
         with tf.GradientTape() as tape:
             tape.watch(self.trainable_variables)
