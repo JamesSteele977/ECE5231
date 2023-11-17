@@ -1,8 +1,8 @@
 import numpy as np
 from enum import Enum, auto
 from typing import Tuple
-from tensorflow import Variable
 
+stateVarType: type = np.float32 | np.ndarray
 class StateVariable(Enum):
     GRADIENTS = auto()
     TRAINABLE_VARIABLES = auto()
@@ -28,7 +28,7 @@ class Solution():
             (epochs, (n_trainable_variables * 2) + (bandwidth * bandwidth_sampling_rate) + 7),
             dtype=np.float32
         )
-        self.epoch: int = -1
+        self.epoch: int = 0
         pass
 
     def _state_variable_argument_check(self, variable_type: StateVariable) -> None:
@@ -38,9 +38,9 @@ class Solution():
             raise TypeError(f"Argument 'variable_type' must be an instance of type StateVariable")
         pass
 
-    def _get_state_variable(self, variable_type: StateVariable) -> np.ndarray | np.float32:
+    def _get_state_variable(self, variable_type: StateVariable) -> stateVarType:
         self._state_variable_argument_check(variable_type)
-        loss_variables_starting_index = 2 * self.n_trainable_variables
+        loss_variables_starting_index: int = 2 * self.n_trainable_variables
         match variable_type:
             case StateVariable.GRADIENTS:
                 return self.state_variables[self.epoch, 0:self.n_trainable_variables]
@@ -63,19 +63,14 @@ class Solution():
             case StateVariable.RESPONSE:
                 return self.state_variables[self.epoch, loss_variables_starting_index + 8:]
     
-    def _set_state_variable(self, variable_type: StateVariable, value: np.float32 | np.ndarray) -> None:
+    def _set_state_variable(self, variable_type: StateVariable, value: stateVarType) -> None:
         self._state_variable_argument_check(variable_type)
-        target_variable: np.ndarray | np.float32 = self._get_state_variable(self, variable_type)
-        target_variable_shape: np.ndarray = np.asarray(target_variable).shape
-        value_shape: np.ndarray = np.asarray(value).shape
-        if target_variable_shape != value_shape:
-            raise ValueError(f"Target variable type and value must have same shape: {target_variable_shape} != {value_shape}")
-        target_variable: np.ndarray | np.float32 = value
+        target_variable: stateVarType = self._get_state_variable(self, variable_type)
+        if np.asarray(target_variable).shape != np.asarray(value).shape:
+            raise ValueError(f"Target variable type and value must have same shape: {np.asarray(target_variable).shape} != {np.asarray(value).shape}")
+        target_variable: stateVarType = value
         pass
 
     def _set_epoch(self, epoch: int):
-        self.epoch = epoch
+        self.epoch: int = epoch
         pass
-
-    def _dereference_trainable_variables(self, trainable_variables: Tuple[Variable, ...]) -> np.ndarray:
-        return np.array([variable.numpy() for variable in trainable_variables], dtype=np.float32)
