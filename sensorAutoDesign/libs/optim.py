@@ -1,12 +1,11 @@
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
-from types import SimpleNamespace
 from enum import Enum
 from typing import Tuple
 from dataclasses import dataclass
 
-from .sensor import Sensor, SensorProfile
+from .sensor import SensorProfile
 from .solution import Solution, StateVariable
 
 @dataclass(frozen=True)
@@ -32,56 +31,59 @@ class Optim(tf.Module, Solution):
         self.optim_config: OptimConfig = optim_config
         self.sensor_profile: SensorProfile = sensor_profile
 
+        self.epoch: int = 0
+        self._set_sensor_input()
         self._set_optimizer(self.optim_config.optimizer)  
+        self._set_initial_loss_weights()
 
         for variable_name, bounds in self.sensor_profile.trainable_variables.items():
             self._set_trainable_variable(variable_name, bounds)
 
-        self.epoch: int = 0
-        self.sensor_input: np.ndarray = tf.range(
+        Solution.__init__(self, len(self.trainable_variables), sensor_profile.bandwidth, self.optim_config.epochs)
+        pass
+
+    """ INIT """
+    def _set_sensor_input(self) -> None:
+        self.sensor_input: tf.Tensor = tf.range(
             self.sensor_profile.bandwidth[0],
             self.sensor_profile.bandwidth[-1],
             1/self.optim_config.bandwidth_sampling_rate,
             dtype=tf.float32
         )
-
-        Solution.__init__(
-            self,
-            n_trainable_variables=len(self.trainable_variables),
-            bandwidth=sensor_profile.bandwidth,
-            epochs=self.optim_config.epochs
-        )
-
-        self._set_state_variable(
-            StateVariable.SENSITIVITY_LOSS_WEIGHT, 
-            self.optim_config.initial_sensitivity_loss_weight
-        )
-        self._set_state_variable(
-            StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT, 
-            self.optim_config.initial_mean_squared_error_loss_weight
-        )
-        self._set_state_variable(
-            StateVariable.FOOTPRINT_LOSS_WEIGHT, 
-            self.optim_config.initial_footprint_loss_weight
-        )
         pass
 
-    def _set_optimizer(self, optimizer: TfOptimizer) -> None:
-        match optimizer:
+    def _set_optimizer(self) -> None:
+        match self.optim_config.optimizer:
             case TfOptimizer.ADAM:
                 self.optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=self.optim_config.learning_rate)
             case TfOptimizer.STOCHASTIC_GRADIENT_DESCENT:
                 self.optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.SGD(learning_rate=self.optim_config.learning_rate)                
             case _:
-                raise ValueError(f"Unsupported optimizer: {optimizer}")
-
-    def _set_trainable_variable(self, variable_name: str, bounds: Tuple[float, float]):
-        setattr(
-            self, variable_name,
-            tf.Variable(initial_value=(sum(bounds)/2), trainable=True)
-        )
-        getattr(self, variable_name).bounds = bounds
+                raise ValueError(f"Unsupported optimizer: {self.optim_config.optimizer}")
         pass
+
+    def _set_initial_loss_weights(self) -> None:
+        loss_types: Tuple[str, str, str] = (
+            StateVariable.SENSITIVITY_LOSS_WEIGHT, 
+            StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT, 
+            StateVariable.FOOTPRINT_LOSS_WEIGHT
+        )
+        initial_values: Tuple[float, float, float] = (
+            self.optim_config.initial_sensitivity_loss_weight,
+            self.optim_config.initial_mean_squared_error_loss_weight,
+            self.optim_config.initial_footprint_loss_weight
+        )
+        for loss_type, initial_value in zip(loss_types, initial_values):
+            self._set_state_variable(loss_type, initial_value)
+        pass
+
+    def _set_trainable_variable(self, variable_name: str, bounds: Tuple[float, float]) -> None:
+        variable: tf.Variable = tf.Variable(initial_value=(sum(bounds)/2), trainable=True)
+        variable.bounds: Tuple[float, float] = bounds
+        setattr(self, variable_name, variable)
+        pass
+    
+    """ CALL """
 
     def _get_mean_squared_error(self) -> tf.float32:
         response = self._get_state_variable(StateVariable.RESPONSE)
