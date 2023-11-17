@@ -9,25 +9,25 @@ trainableVars: type = Tuple[tf.Variable, ...]
 def EvalType(returns: type) -> type:
     return Callable[[trainableVars], returns]
 
-@dataclass(staticmethod=True)
+@dataclass(frozen=True)
 class SensorBasicInfo():
     trainable_variables: Dict[str, Tuple[float, float]]
     bandwidth: Tuple[float, float]
     input_symbol: str
 
-@dataclass(staticmethod=True)
+@dataclass(frozen=True)
 class SensorConfig(SensorBasicInfo):
     parameter_relationships: Tuple[str, ...]
     footprint: str
     response: str
 
-@dataclass(staticmethod=True)
+@dataclass(frozen=True)
 class ParameterRelationship():
     boolean_evaluation: EvalType(bool)
     substitution_solve: EvalType(float)
     sympy_expression: Expr
 
-@dataclass(staticmethod=True)
+@dataclass(frozen=True)
 class SensorProfile(SensorBasicInfo):
     parameter_relationships: Tuple[ParameterRelationship, ...]
     _get_footprint: EvalType(np.float32)
