@@ -32,14 +32,22 @@ class Optim(tf.Module, Solution):
         self.sensor_profile: SensorProfile = sensor_profile
 
         self.epoch: int = 0
-        self._set_sensor_input()
-        self._set_optimizer(self.optim_config.optimizer)  
-        self._set_initial_loss_weights()
+        self.n_constraints_violated: int = 0
 
         for variable_name, bounds in self.sensor_profile.trainable_variables.items():
             self._set_trainable_variable(variable_name, bounds)
 
-        Solution.__init__(self, len(self.trainable_variables), sensor_profile.bandwidth, self.optim_config.epochs)
+        Solution.__init__(
+            self,
+            n_trainable_variables=len(self.trainable_variables),
+            bandwidth=self.sensor_profile.bandwidth,
+            bandwidth_sampling_rate=self.optim_config.bandwidth_sampling_rate,
+            epochs=self.optim_config.epochs
+        )
+
+        self._set_sensor_input()
+        self._set_optimizer()  
+        self._set_initial_loss_weights()
         pass
 
     # -------------------------------------------------------------------------------------------
@@ -49,15 +57,16 @@ class Optim(tf.Module, Solution):
             self.sensor_profile.bandwidth[0],
             self.sensor_profile.bandwidth[-1],
             1 / self.optim_config.bandwidth_sampling_rate,
-            dtype=tf.float32
+            dtype=tf.float32,
+            name=self.sensor_profile.input_symbol
         )
         pass
 
     def _set_optimizer(self) -> None:
         match self.optim_config.optimizer:
-            case TfOptimizer.ADAM:
+            case TfOptimizer.ADAM.value:
                 self.optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=self.optim_config.learning_rate)
-            case TfOptimizer.STOCHASTIC_GRADIENT_DESCENT:
+            case TfOptimizer.STOCHASTIC_GRADIENT_DESCENT.value:
                 self.optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.SGD(learning_rate=self.optim_config.learning_rate)                
             case _:
                 raise ValueError(f"Unsupported optimizer: {self.optim_config.optimizer}")
@@ -79,59 +88,55 @@ class Optim(tf.Module, Solution):
         pass
 
     def _set_trainable_variable(self, variable_name: str, bounds: Tuple[float, float]) -> None:
-        variable: tf.Variable = tf.Variable(initial_value=(sum(bounds)/2), trainable=True)
+        variable: tf.Variable = tf.Variable(name=variable_name, initial_value=(sum(bounds)/2), trainable=True)
         variable.bounds: Tuple[float, float] = bounds
         setattr(self, variable_name, variable)
         pass
     
     # -------------------------------------------------------------------------------------------
     """ CALL """
+    # Loss Function
     def _get_mean_squared_error(self) -> tf.float32:
-        response = self._get_state_variable(StateVariable.RESPONSE)
-        mean_squared_error = tf.square(
+        response: tf.Tensor = tf.convert_to_tensor(
+            self._get_state_variable(StateVariable.RESPONSE),
+            dtype=tf.float32
+        )
+        mean_squared_error: tf.float32 = tf.square(
             response - (self.input_range * self._get_state_variable(StateVariable.SENSITIVITY) + response[0])
         )/(self.sensor_input[-1] - self.sensor_input[0])
-        self._set_state_variable(StateVariable.MEAN_SQUARED_ERROR, mean_squared_error)
+        self._set_state_variable(StateVariable.MEAN_SQUARED_ERROR, mean_squared_error.numpy())
         return mean_squared_error
     
     def _get_sensitivity(self) -> tf.float32:
-        response = self._get_state_variable(StateVariable.RESPONSE)
-        sensitivity = (response[-1]-response[0])/(self.sensor_input[-1]-self.sensor_input[0])
-        self._set_state_variable(StateVariable.SENSITIVITY, sensitivity)
+        response: tf.Tensor = tf.convert_to_tensor(
+            self._get_state_variable(StateVariable.RESPONSE),
+            dtype=tf.float32
+        )
+        sensitivity: tf.float32 = (response[-1]-response[0])/(self.sensor_input[-1]-self.sensor_input[0])
+        self._set_state_variable(StateVariable.SENSITIVITY, sensitivity.numpy())
         return sensitivity
     
-    def _get_loss(self):
+    def _get_loss(self) -> tf.float32:
+        self._set_n_constraints_violated()
         self._set_state_variable(
             StateVariable.RESPONSE, 
             self.sensor_profile._get_response(self.trainable_variables, self.sensor_input)
         )
-        return -self._get_sensitivity() * self._get_state_variable(StateVariable.SENSITIVITY_LOSS_WEIGHT)\
+        unscaled_loss: tf.float32 = -self._get_sensitivity() * self._get_state_variable(StateVariable.SENSITIVITY_LOSS_WEIGHT)\
         + self._get_mean_squared_error() * self._get_state_variable(StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT)\
         + self.sensor_profile._get_footprint(self.trainable_variables) * self._get_state_variable(StateVariable.FOOTPRINT_LOSS_WEIGHT)
+        return unscaled_loss + (self.n_constraints_violated * tf.abs(unscaled_loss))
 
-    def _enforce_parameter_relationships(self):
+    # Constrained Optimization
+    def _set_n_constraints_violated(self) -> None:
+        self.n_constraints_violated = 0
         for relationship in self.sensor_profile.parameter_relationships:
             if relationship.boolean_evaluation(self.trainable_variables):
-                continue
+                self.n_constraints_violated += 1
+        pass
             
-            sampled_points: list = []
-            for symbol in relationship.sympy_expression.free_symbols:
-                bounds: Tuple[float, float] = self.sensor_profile.trainable_variables[str(symbol)]
-                sampled_points.append(np.arange(bounds[0], bounds[-1], self.optim_config.relationship_sampling_rate))
-
-        min_distance = np.inf
-        closest_point = {}
-        for values in np.nditer(np.meshgrid(*sampled_points)):
-            current_point = {str(variables[i]): float(values[i]) for i in range(len(variables))}
-            if relation.path(current_point):
-                distance = sum((point[var] - current_point[var])**2 for var in point)
-                if distance < min_distance:
-                    min_distance = distance
-                    closest_point = current_point
-        return closest_point
-
-    def _clip_trainable_variables_to_boundaries(self):
-        for var in sensor.trainable_variables:
+    def _clip_trainable_variables_to_boundaries(self) -> None:
+        for var in self.trainable_variables:
             var.assign(tf.clip_by_value(
                 var, 
                 clip_value_min=var.bound[0], 
@@ -139,13 +144,11 @@ class Optim(tf.Module, Solution):
             ))
         pass
 
-    def _update_loss_component_weights(self):
-        pass
-
     def _dereference_trainable_variables(self, trainable_variables: Tuple[tf.Variable, ...]) -> np.ndarray:
         return np.array([variable.numpy() for variable in trainable_variables], dtype=np.float32)
 
-    def _train_step(self):
+    # Optimization Loop
+    def _train_step(self) -> None:
         self._set_state_variable(StateVariable.TRAINABLE_VARIABLES, self._dereference_trainable_variables(self.trainable_variables))
 
         with tf.GradientTape() as tape:
@@ -165,13 +168,11 @@ class Optim(tf.Module, Solution):
             )
         )
 
-        self._enforce_parameter_relationships()
         self._clip_trainable_variables_to_boundaries()
-        self._update_loss_component_weights()
         pass
 
-    def __call__(self):
-        for epoch in tqdm(range(self.epochs), desc="Fitting... "):
+    def __call__(self) -> None:
+        for epoch in tqdm(range(self.optim_config.epochs), desc="Fitting... "):
             self._set_epoch(epoch)
             self._train_step()
         pass

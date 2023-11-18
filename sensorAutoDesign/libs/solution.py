@@ -25,7 +25,7 @@ class Solution():
         ) -> None:
         self.n_trainable_variables: int = n_trainable_variables
         self.state_variables: np.ndarray = np.empty(
-            (epochs, (n_trainable_variables * 2) + (bandwidth * bandwidth_sampling_rate) + 7),
+            (epochs, (n_trainable_variables * 2) + int((bandwidth[-1]-bandwidth[0]) * bandwidth_sampling_rate) + 7),
             dtype=np.float32
         )
         self.epoch: int = 0
@@ -65,7 +65,7 @@ class Solution():
     
     def _set_state_variable(self, variable_type: StateVariable, value: stateVarType) -> None:
         self._state_variable_argument_check(variable_type)
-        target_variable: stateVarType = self._get_state_variable(self, variable_type)
+        target_variable: stateVarType = self._get_state_variable(variable_type)
         if np.asarray(target_variable).shape != np.asarray(value).shape:
             raise ValueError(f"Target variable type and value must have same shape: {np.asarray(target_variable).shape} != {np.asarray(value).shape}")
         target_variable: stateVarType = value
