@@ -25,7 +25,7 @@ class Solution():
         ) -> None:
         self.n_trainable_variables: int = n_trainable_variables
         self.state_variables: np.ndarray = np.empty(
-            (epochs, (n_trainable_variables * 2) + int((bandwidth[-1]-bandwidth[0]) * bandwidth_sampling_rate) + 7),
+            (epochs, (n_trainable_variables * 2) + int((bandwidth[-1]-bandwidth[0]) * bandwidth_sampling_rate) + 8),
             dtype=np.float32
         )
         self.epoch: int = 0
@@ -38,37 +38,43 @@ class Solution():
             raise TypeError(f"Argument 'variable_type' must be an instance of type StateVariable")
         pass
 
-    def _get_state_variable(self, variable_type: StateVariable) -> stateVarType:
+    def _get_state_variable_slice(self, variable_type: StateVariable, all_epochs: bool) -> slice:
         self._state_variable_argument_check(variable_type)
         loss_variables_starting_index: int = 2 * self.n_trainable_variables
         match variable_type:
             case StateVariable.GRADIENTS:
-                return self.state_variables[self.epoch, 0:self.n_trainable_variables]
+                query_slice: slice = np.s_[0:self.n_trainable_variables]
             case StateVariable.TRAINABLE_VARIABLES:
-                return self.state_variables[self.epoch, self.n_trainable_variables:loss_variables_starting_index]
+                query_slice: slice = np.s_[self.n_trainable_variables:loss_variables_starting_index]
             case StateVariable.LOSS:
-                return self.state_variables[self.epoch, loss_variables_starting_index + 1]
+                query_slice: slice = np.s_[loss_variables_starting_index + 1]
             case StateVariable.SENSITIVITY:
-                return self.state_variables[self.epoch, loss_variables_starting_index + 2]
+                query_slice: slice = np.s_[loss_variables_starting_index + 2]
             case StateVariable.MEAN_SQUARED_ERROR:
-                return self.state_variables[self.epoch, loss_variables_starting_index + 3]
+                query_slice: slice = np.s_[loss_variables_starting_index + 3]
             case StateVariable.FOOTPRINT:
-                return self.state_variables[self.epoch, loss_variables_starting_index + 4]
+                query_slice: slice = np.s_[loss_variables_starting_index + 4]
             case StateVariable.SENSITIVITY_LOSS_WEIGHT:
-                return self.state_variables[self.epoch, loss_variables_starting_index + 5]
+                query_slice: slice = np.s_[loss_variables_starting_index + 5]
             case StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT:
-                return self.state_variables[self.epoch, loss_variables_starting_index + 6]
+                query_slice: slice = np.s_[loss_variables_starting_index + 6]
             case StateVariable.FOOTPRINT_LOSS_WEIGHT:
-                return self.state_variables[self.epoch, loss_variables_starting_index + 7]
+                query_slice: slice = np.s_[loss_variables_starting_index + 7]
             case StateVariable.RESPONSE:
-                return self.state_variables[self.epoch, loss_variables_starting_index + 8:]
+                query_slice: slice = np.s_[loss_variables_starting_index + 8:]
+        match all_epochs:
+            case True:
+                epoch_slice: slice = np.s_[:]
+            case False:
+                epoch_slice: slice = np.s_[self.epoch]
+        return (epoch_slice, query_slice)
+
+    def _get_state_variable(self, variable_type: StateVariable, all_epochs: bool = False) -> stateVarType:    
+        return self.state_variables[self._get_state_variable_slice(variable_type, all_epochs)]
     
     def _set_state_variable(self, variable_type: StateVariable, value: stateVarType) -> None:
-        self._state_variable_argument_check(variable_type)
-        target_variable: stateVarType = self._get_state_variable(variable_type)
-        if np.asarray(target_variable).shape != np.asarray(value).shape:
-            raise ValueError(f"Target variable type and value must have same shape: {np.asarray(target_variable).shape} != {np.asarray(value).shape}")
-        target_variable: stateVarType = value
+        self.state_variables[self._get_state_variable_slice(variable_type, False)]: stateVarType = value
+        print(f"{variable_type.name} set in epoch {self.epoch}: {value}")
         pass
 
     def _set_epoch(self, epoch: int):

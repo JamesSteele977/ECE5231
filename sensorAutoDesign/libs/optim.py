@@ -101,9 +101,9 @@ class Optim(tf.Module, Solution):
             self._get_state_variable(StateVariable.RESPONSE),
             dtype=tf.float32
         )
-        mean_squared_error: tf.float32 = tf.square(
-            response - (self.input_range * self._get_state_variable(StateVariable.SENSITIVITY) + response[0])
-        )/(self.sensor_input[-1] - self.sensor_input[0])
+        mean_squared_error: tf.float32 = tf.reduce_mean(tf.square(
+            response - (self.sensor_input * self._get_state_variable(StateVariable.SENSITIVITY) + response[0])
+        )/(self.sensor_input[-1] - self.sensor_input[0]))
         self._set_state_variable(StateVariable.MEAN_SQUARED_ERROR, mean_squared_error.numpy())
         return mean_squared_error
     
@@ -120,12 +120,16 @@ class Optim(tf.Module, Solution):
         self._set_n_constraints_violated()
         self._set_state_variable(
             StateVariable.RESPONSE, 
-            self.sensor_profile._get_response(self.trainable_variables, self.sensor_input)
+            self.sensor_profile._get_response(self.trainable_variables, self.sensor_input).numpy()
         )
+
         unscaled_loss: tf.float32 = -self._get_sensitivity() * self._get_state_variable(StateVariable.SENSITIVITY_LOSS_WEIGHT)\
         + self._get_mean_squared_error() * self._get_state_variable(StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT)\
         + self.sensor_profile._get_footprint(self.trainable_variables) * self._get_state_variable(StateVariable.FOOTPRINT_LOSS_WEIGHT)
-        return unscaled_loss + (self.n_constraints_violated * tf.abs(unscaled_loss))
+
+        loss: tf.float32 = unscaled_loss + (self.n_constraints_violated * tf.abs(unscaled_loss))
+        self._set_state_variable(StateVariable.LOSS, loss.numpy())
+        return loss
 
     # Constrained Optimization
     def _set_n_constraints_violated(self) -> None:
@@ -139,35 +143,25 @@ class Optim(tf.Module, Solution):
         for var in self.trainable_variables:
             var.assign(tf.clip_by_value(
                 var, 
-                clip_value_min=var.bound[0], 
-                clip_value_max=var.bound[-1]
+                clip_value_min=var.bounds[0], 
+                clip_value_max=var.bounds[-1]
             ))
         pass
 
-    def _dereference_trainable_variables(self, trainable_variables: Tuple[tf.Variable, ...]) -> np.ndarray:
+    def _dereference_tf_tuple(self, trainable_variables: Tuple[tf.Variable, ...] | Tuple[tf.Tensor, ...]) -> np.ndarray:
         return np.array([variable.numpy() for variable in trainable_variables], dtype=np.float32)
 
     # Optimization Loop
     def _train_step(self) -> None:
-        self._set_state_variable(StateVariable.TRAINABLE_VARIABLES, self._dereference_trainable_variables(self.trainable_variables))
+        self._set_state_variable(StateVariable.TRAINABLE_VARIABLES, self._dereference_tf_tuple(self.trainable_variables))
 
         with tf.GradientTape() as tape:
-            tape.watch(self.trainable_variables)
+            loss: tf.float32 = self._get_loss()
         
-        self._set_state_variable(
-            StateVariable.GRADIENTS, 
-            tape.gradient(
-                self._get_loss(), self.trainable_variables
-            )
-        )
+        gradient: Tuple[tf.Tensor, ...] = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradient, self.trainable_variables))
 
-        self.optimizer.apply_gradients(
-            zip(
-                self._get_state_variable(StateVariable.GRADIENTS), 
-                self.trainable_variables
-            )
-        )
-
+        self._set_state_variable(StateVariable.GRADIENTS, self._dereference_tf_tuple(gradient))
         self._clip_trainable_variables_to_boundaries()
         pass
 
