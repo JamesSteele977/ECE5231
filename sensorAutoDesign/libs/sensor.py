@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from sympy import sympify, lambdify, symbols, solve, Expr, Symbol
+import sympy as sp
 from dataclasses import dataclass, fields
 from typing import Tuple, Dict, Callable, Union
 from enum import Enum
@@ -25,8 +25,8 @@ class SensorConfig(SensorBasicInfo):
 @dataclass(frozen=True)
 class ParameterRelationship():
     boolean_evaluation: EvalType(bool)
-    substitution_solve: EvalType(tf.float32)
-    sympy_expression: Expr
+    conditional_loss_multiplier: EvalType(tf.float32)
+    sympy_expression: sp.Expr
 
 @dataclass(frozen=True)
 class SensorProfile(SensorBasicInfo):
@@ -53,7 +53,7 @@ class Sensor():
             SensorDescription.RESPONSE: sensor_config.response
         }
 
-        self.symbols: Tuple[Symbol, ...] = symbols(tuple(sensor_config.trainable_variables.keys()))
+        self.symbols: Tuple[sp.Symbol, ...] = sp.symbols(tuple(sensor_config.trainable_variables.keys()))
         self.parameter_relationships: list = []
         for relationship in sensor_config.parameter_relationships:
             self._set_parameter_relationship(relationship)
@@ -74,9 +74,9 @@ class Sensor():
 
         pass
 
-    def _lambdify_parse_expression(self, expression: str, argument_symbols: Tuple[Symbol, ...]) -> Tuple[EvalType(tf.float32), Tuple[str, ...]]:
-        sympy_expression: Expr = sympify(expression)
-        lambda_function: EvalType(tf.float32) = lambdify(argument_symbols, sympy_expression)
+    def _lambdify_parse_expression(self, expression: str, argument_symbols: Tuple[sp.Symbol, ...]) -> Tuple[EvalType(tf.float32), Tuple[str, ...]]:
+        sympy_expression: sp.Expr = sp.sympify(expression)
+        lambda_function: EvalType(tf.float32) = sp.lambdify(argument_symbols, sympy_expression)
         lambda_arguments: Tuple[str, ...] = tuple(str(sym) for sym in sympy_expression.free_symbols)
         return sympy_expression, lambda_function, lambda_arguments
 
@@ -100,22 +100,14 @@ class Sensor():
         sympy_expression, lambda_function, arguments = self._lambdify_parse_expression(relationship_expression, self.symbols)
 
         _boolean_evaluation: EvalType(bool) = self._get_symbolic_evaulation_function(lambda_function, arguments)
-        
-        def _substitution_solve(substituted_variables: trainableVars) -> tf.float32:
-            input_args: dict = {variable.name:variable for variable in substituted_variables}
 
-            missing_args: list = [name for idx, name in enumerate(arguments) if input_args[idx] is None]
-            degrees_of_freedom: int = len(missing_args)
+        difference_expression: sp.Expr = sympy_expression.lhs - sympy_expression.rhs
 
-            if degrees_of_freedom != 1:
-                if degrees_of_freedom > 1:
-                    raise ValueError(f"Missing keyword arguments: {', '.join(missing_args)}")
-                if degrees_of_freedom < 1:
-                    raise ValueError(f"All variables provided. Cannot perform substitution solve (at least one variable must be missing)")
-            
-            return solve(sympy_expression.subs(input_args), missing_args[0])
+        def _conditional_loss_multiplier(substituted_variables: trainableVars) -> tf.float32:
+            input_args: dict = {self._tf_index_to_name(variable.name):variable for variable in substituted_variables}
+            return tf.convert_to_tensor(float(difference_expression.subs(input_args))**2)
 
-        self.parameter_relationships.append(ParameterRelationship(_boolean_evaluation, _substitution_solve, sympy_expression))
+        self.parameter_relationships.append(ParameterRelationship(_boolean_evaluation, _conditional_loss_multiplier, sympy_expression))
         pass
 
     def _get_footprint_function(self, expression: str) -> EvalType(tf.float32):
@@ -123,7 +115,7 @@ class Sensor():
         return self._get_symbolic_evaulation_function(lambda_function, arguments)
 
     def _get_response_funtion(self, expression: str, input_symbol: str) -> EvalType(tf.float32):
-        _, lambda_function, arguments = self._lambdify_parse_expression(expression, self.symbols+(symbols(input_symbol),))
+        _, lambda_function, arguments = self._lambdify_parse_expression(expression, self.symbols+(sp.symbols(input_symbol),))
 
         def _get_response(trainable_variables: trainableVars, sensor_input: tf.Tensor) -> tf.Tensor:
             lambda_input: list = self._parse_trainable_variables(trainable_variables, arguments)

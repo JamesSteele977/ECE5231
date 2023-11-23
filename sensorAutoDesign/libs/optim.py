@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from .sensor import SensorProfile
 from .solution import Solution, StateVariable
 
+import inspect
+
 @dataclass(frozen=True)
 class OptimConfig:
     optimizer: str
@@ -136,10 +138,14 @@ class Optim(tf.Module, Solution):
 
     # Constrained Optimization
     def _set_n_constraints_violated(self) -> None:
-        self.n_constraints_violated: int = 0
+        self.n_constraints_violated: int = 1
+        any_constraints_violated: bool = False
         for relationship in self.sensor_profile.parameter_relationships:
             if not relationship.boolean_evaluation(self.trainable_variables):
-                self.n_constraints_violated += 1
+                self.n_constraints_violated *= 1 + relationship.conditional_loss_multiplier(self.trainable_variables)
+                any_constraints_violated: bool = True
+        if not any_constraints_violated:
+            self.n_constraints_violated: int = 0
         pass
             
     def _clip_trainable_variables_to_boundaries(self) -> None:
