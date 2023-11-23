@@ -75,7 +75,7 @@ class Optim(tf.Module, Solution):
     def _set_initial_loss_weights(self) -> None:
         loss_types: Tuple[str, str, str] = (
             StateVariable.SENSITIVITY_LOSS_WEIGHT, 
-            StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT, 
+            StateVariable.MEAN_SQUARED_ERROR_LOSS_WEIGHT, 
             StateVariable.FOOTPRINT_LOSS_WEIGHT
         )
         initial_values: Tuple[float, float, float] = (
@@ -115,7 +115,7 @@ class Optim(tf.Module, Solution):
         sensitivity: tf.float32 = (response[-1]-response[0])/(self.sensor_input[-1]-self.sensor_input[0])
         self._set_state_variable(StateVariable.SENSITIVITY, sensitivity.numpy())
         return sensitivity
-    
+
     def _get_loss(self) -> tf.float32:
         self._set_n_constraints_violated()
         self._set_state_variable(
@@ -123,9 +123,12 @@ class Optim(tf.Module, Solution):
             self.sensor_profile._get_response(self.trainable_variables, self.sensor_input).numpy()
         )
 
+        footprint: tf.float32 = self.sensor_profile._get_footprint(self.trainable_variables)
+        self._set_state_variable(StateVariable.FOOTPRINT, footprint)
+
         unscaled_loss: tf.float32 = -self._get_sensitivity() * self._get_state_variable(StateVariable.SENSITIVITY_LOSS_WEIGHT)\
-        + self._get_mean_squared_error() * self._get_state_variable(StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT)\
-        + self.sensor_profile._get_footprint(self.trainable_variables) * self._get_state_variable(StateVariable.FOOTPRINT_LOSS_WEIGHT)
+        + self._get_mean_squared_error() * self._get_state_variable(StateVariable.MEAN_SQUARED_ERROR_LOSS_WEIGHT)\
+        + footprint * self._get_state_variable(StateVariable.FOOTPRINT_LOSS_WEIGHT)
 
         loss: tf.float32 = unscaled_loss + (self.n_constraints_violated * tf.abs(unscaled_loss))
         self._set_state_variable(StateVariable.LOSS, loss.numpy())
@@ -133,9 +136,9 @@ class Optim(tf.Module, Solution):
 
     # Constrained Optimization
     def _set_n_constraints_violated(self) -> None:
-        self.n_constraints_violated = 0
+        self.n_constraints_violated: int = 0
         for relationship in self.sensor_profile.parameter_relationships:
-            if relationship.boolean_evaluation(self.trainable_variables):
+            if not relationship.boolean_evaluation(self.trainable_variables):
                 self.n_constraints_violated += 1
         pass
             
@@ -148,6 +151,17 @@ class Optim(tf.Module, Solution):
             ))
         pass
 
+    # Adaptive Loss Weights
+    def _update_loss_weights(self) -> None:
+        for variable_type in (
+                StateVariable.MEAN_SQUARED_ERROR_LOSS_WEIGHT,
+                StateVariable.FOOTPRINT_LOSS_WEIGHT,
+                StateVariable.SENSITIVITY_LOSS_WEIGHT
+            ):
+            self._set_state_variable(variable_type, self._get_state_variable(variable_type), epoch=self.epoch+1)
+        pass
+
+    # Utility
     def _dereference_tf_tuple(self, trainable_variables: Tuple[tf.Variable, ...] | Tuple[tf.Tensor, ...]) -> np.ndarray:
         return np.array([variable.numpy() for variable in trainable_variables], dtype=np.float32)
 
@@ -163,6 +177,9 @@ class Optim(tf.Module, Solution):
 
         self._set_state_variable(StateVariable.GRADIENTS, self._dereference_tf_tuple(gradient))
         self._clip_trainable_variables_to_boundaries()
+        if self.epoch != self.optim_config.epochs-1:
+            self._update_loss_weights()
+        print("CONSTRAINTS ", self.n_constraints_violated)
         pass
 
     def __call__(self) -> None:

@@ -11,7 +11,7 @@ class StateVariable(Enum):
     MEAN_SQUARED_ERROR = auto()
     FOOTPRINT = auto()
     SENSITIVITY_LOSS_WEIGHT = auto()
-    MEAN_SQIUARED_ERROR_LOSS_WEIGHT = auto()
+    MEAN_SQUARED_ERROR_LOSS_WEIGHT = auto()
     FOOTPRINT_LOSS_WEIGHT = auto()
     RESPONSE = auto()
     
@@ -38,7 +38,7 @@ class Solution():
             raise TypeError(f"Argument 'variable_type' must be an instance of type StateVariable")
         pass
 
-    def _get_state_variable_slice(self, variable_type: StateVariable, all_epochs: bool) -> slice:
+    def _get_state_variable_slice(self, variable_type: StateVariable, all_epochs: bool, epoch: int | None) -> slice:
         self._state_variable_argument_check(variable_type)
         loss_variables_starting_index: int = 2 * self.n_trainable_variables
         match variable_type:
@@ -56,7 +56,7 @@ class Solution():
                 query_slice: slice = np.s_[loss_variables_starting_index + 4]
             case StateVariable.SENSITIVITY_LOSS_WEIGHT:
                 query_slice: slice = np.s_[loss_variables_starting_index + 5]
-            case StateVariable.MEAN_SQIUARED_ERROR_LOSS_WEIGHT:
+            case StateVariable.MEAN_SQUARED_ERROR_LOSS_WEIGHT:
                 query_slice: slice = np.s_[loss_variables_starting_index + 6]
             case StateVariable.FOOTPRINT_LOSS_WEIGHT:
                 query_slice: slice = np.s_[loss_variables_starting_index + 7]
@@ -66,15 +66,18 @@ class Solution():
             case True:
                 epoch_slice: slice = np.s_[:]
             case False:
-                epoch_slice: slice = np.s_[self.epoch]
+                if epoch is None:
+                    epoch_slice: slice = np.s_[self.epoch]
+                else:
+                    epoch_slice: slice = np.s_[epoch]
         return (epoch_slice, query_slice)
 
-    def _get_state_variable(self, variable_type: StateVariable, all_epochs: bool = False) -> stateVarType:    
-        return self.state_variables[self._get_state_variable_slice(variable_type, all_epochs)]
+    def _get_state_variable(self, variable_type: StateVariable, all_epochs: bool = False, epoch: int | None = None) -> stateVarType:    
+        return self.state_variables[self._get_state_variable_slice(variable_type, all_epochs, epoch)]
     
-    def _set_state_variable(self, variable_type: StateVariable, value: stateVarType) -> None:
-        self.state_variables[self._get_state_variable_slice(variable_type, False)]: stateVarType = value
-        print(f"{variable_type.name} set in epoch {self.epoch}: {value}")
+    def _set_state_variable(self, variable_type: StateVariable, value: stateVarType, epoch: int | None = None) -> None:
+        self.state_variables[self._get_state_variable_slice(variable_type, False, epoch=epoch)]: stateVarType = value
+        print(f"{variable_type.name} set in epoch {self.epoch}:\t{value}")
         pass
 
     def _set_epoch(self, epoch: int):

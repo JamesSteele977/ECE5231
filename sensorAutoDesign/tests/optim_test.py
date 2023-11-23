@@ -8,21 +8,24 @@ if __name__ == '__main__':
 
     from libs.optim import Optim, OptimConfig, StateVariable
     from libs.sensor import Sensor, SensorConfig
-
+    
     sensor_config: SensorConfig = SensorConfig(
-        {'x': [1,3], 'y': [2,4]},
-        [1,10],
-        'Z',
-        ['x > y'],
-        'x * y',
-        '(y^2 - x)*Z'
+        trainable_variables={'x': [1,5], 'y': [2,4]},
+        bandwidth=[1,10],
+        input_symbol='Z',
+        parameter_relationships=['x > y'],
+        footprint='x * y',
+        response='(y + x)*Z'
     )
     optim_config: OptimConfig = OptimConfig(
-        'adam',
-        10,
-        1e1, 1e1,
-        1e-2,
-        1, 1, 1
+        optimizer='adam',
+        epochs=20,
+        bandwidth_sampling_rate=1e1, 
+        relationship_sampling_rate=1e1,
+        learning_rate=1e-1,
+        initial_footprint_loss_weight=1e-1, 
+        initial_mean_squared_error_loss_weight=1e-1, 
+        initial_sensitivity_loss_weight=1e-1
     )
 
     TestSensor: Sensor = Sensor(sensor_config)
@@ -31,4 +34,5 @@ if __name__ == '__main__':
 
     np.set_printoptions(threshold=np.inf)
     for variable_type in StateVariable.__iter__():
-        print(variable_type.name, '\n', TestOptim._get_state_variable(variable_type, all_epochs=True), '\n')
+        if variable_type != StateVariable.RESPONSE:
+            print(variable_type.name, '\n', TestOptim._get_state_variable(variable_type, all_epochs=True), '\n')
