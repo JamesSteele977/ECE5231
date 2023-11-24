@@ -83,16 +83,17 @@ class Sensor():
     def _tf_index_to_name(self, tf_name: str) -> str:
         return ''.join(tf_name.split(':')[:-1])
 
-    def _parse_trainable_variables(self, trainable_variables: trainableVars, arguments: Tuple[str, ...]) -> list:
-        lambda_input: list = [variable for variable in trainable_variables if self._tf_index_to_name(variable.name) in arguments]
-        lambda_input.sort(key=lambda variable: arguments.index(self._tf_index_to_name(variable.name)))
-        return lambda_input
+    def _parse_trainable_variables(self, trainable_variables: trainableVars, arguments: Tuple[str, ...]) -> dict:
+        return {
+            self._tf_index_to_name(variable.name):variable for variable in trainable_variables\
+            if self._tf_index_to_name(variable.name) in arguments
+        }
     
     def _get_symbolic_evaulation_function(self, lambda_function: EvalType(tf.float32), arguments: Tuple[str, ...]) -> EvalType(tf.float32) | EvalType(bool):
 
         def _evaluation(trainable_variables: trainableVars) -> Union[bool, tf.float32]:
-            lambda_input: list = self._parse_trainable_variables(trainable_variables, arguments)
-            return lambda_function(*lambda_input)
+            lambda_input: dict = self._parse_trainable_variables(trainable_variables, arguments)
+            return lambda_function(**lambda_input)
         
         return _evaluation
 
@@ -103,8 +104,8 @@ class Sensor():
 
         difference_expression: sp.Expr = sympy_expression.lhs - sympy_expression.rhs
 
-        def _conditional_loss_multiplier(substituted_variables: trainableVars) -> tf.float32:
-            input_args: dict = {self._tf_index_to_name(variable.name):variable for variable in substituted_variables}
+        def _conditional_loss_multiplier(trainable_variables: trainableVars) -> tf.float32:
+            input_args: dict = self._parse_trainable_variables(trainable_variables, arguments)
             return tf.convert_to_tensor(float(difference_expression.subs(input_args))**2)
 
         self.parameter_relationships.append(ParameterRelationship(_boolean_evaluation, _conditional_loss_multiplier, sympy_expression))
@@ -118,9 +119,8 @@ class Sensor():
         _, lambda_function, arguments = self._lambdify_parse_expression(expression, self.symbols+(sp.symbols(input_symbol),))
 
         def _get_response(trainable_variables: trainableVars, sensor_input: tf.Tensor) -> tf.Tensor:
-            lambda_input: list = self._parse_trainable_variables(trainable_variables, arguments)
-            lambda_input.insert(arguments.index(self.sensor_profile.input_symbol), sensor_input)
-            
-            return lambda_function(*lambda_input)
+            lambda_input: dict = self._parse_trainable_variables(trainable_variables, arguments)
+            lambda_input[self.sensor_profile.input_symbol] = sensor_input
+            return lambda_function(**lambda_input)
         return _get_response
         

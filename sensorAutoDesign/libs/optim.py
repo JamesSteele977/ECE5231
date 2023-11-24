@@ -34,7 +34,7 @@ class Optim(tf.Module, Solution):
         self.sensor_profile: SensorProfile = sensor_profile
 
         self.epoch: int = 0
-        self.n_constraints_violated: int = 0
+        self.n_constraints_violated: float = 0
 
         for variable_name, bounds in self.sensor_profile.trainable_variables.items():
             self._set_trainable_variable(variable_name, bounds)
@@ -138,14 +138,14 @@ class Optim(tf.Module, Solution):
 
     # Constrained Optimization
     def _set_n_constraints_violated(self) -> None:
-        self.n_constraints_violated: int = 1
+        self.n_constraints_violated: float = 1
         any_constraints_violated: bool = False
         for relationship in self.sensor_profile.parameter_relationships:
             if not relationship.boolean_evaluation(self.trainable_variables):
                 self.n_constraints_violated *= 1 + relationship.conditional_loss_multiplier(self.trainable_variables)
                 any_constraints_violated: bool = True
         if not any_constraints_violated:
-            self.n_constraints_violated: int = 0
+            self.n_constraints_violated: float = 0
         pass
             
     def _clip_trainable_variables_to_boundaries(self) -> None:
@@ -174,7 +174,6 @@ class Optim(tf.Module, Solution):
     # Optimization Loop
     def _train_step(self) -> None:
         self._set_state_variable(StateVariable.TRAINABLE_VARIABLES, self._dereference_tf_tuple(self.trainable_variables))
-
         with tf.GradientTape() as tape:
             loss: tf.float32 = self._get_loss()
         
