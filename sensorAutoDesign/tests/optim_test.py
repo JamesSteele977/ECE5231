@@ -10,11 +10,11 @@ if __name__ == '__main__':
     from libs.sensor import Sensor, SensorConfig
     
     sensor_config: SensorConfig = SensorConfig(
-        trainable_variables={'x': [1,5], 'y': [2,4]},
+        trainable_variables={'x': [1,3], 'y': [2,4]},
         bandwidth=[1,10],
         input_symbol='Z',
         parameter_relationships=['x > y'],
-        footprint='x * y',
+        footprint='x',
         response='(y + x)*Z'
     )
     optim_config: OptimConfig = OptimConfig(

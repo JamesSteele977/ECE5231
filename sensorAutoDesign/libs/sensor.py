@@ -77,49 +77,45 @@ class Sensor():
     def _lambdify_parse_expression(self, expression: str, argument_symbols: Tuple[sp.Symbol, ...]) -> Tuple[EvalType(tf.float32), Tuple[str, ...]]:
         sympy_expression: sp.Expr = sp.sympify(expression)
         lambda_function: EvalType(tf.float32) = sp.lambdify(argument_symbols, sympy_expression)
-        lambda_arguments: Tuple[str, ...] = tuple(str(sym) for sym in sympy_expression.free_symbols)
-        return sympy_expression, lambda_function, lambda_arguments
+        return sympy_expression, lambda_function
 
     def _tf_index_to_name(self, tf_name: str) -> str:
         return ''.join(tf_name.split(':')[:-1])
 
-    def _parse_trainable_variables(self, trainable_variables: trainableVars, arguments: Tuple[str, ...]) -> dict:
-        return {
-            self._tf_index_to_name(variable.name):variable for variable in trainable_variables\
-            if self._tf_index_to_name(variable.name) in arguments
-        }
+    def _parse_trainable_variables(self, trainable_variables: trainableVars) -> dict:
+        return {self._tf_index_to_name(variable.name):variable for variable in trainable_variables}
     
-    def _get_symbolic_evaulation_function(self, lambda_function: EvalType(tf.float32), arguments: Tuple[str, ...]) -> EvalType(tf.float32) | EvalType(bool):
+    def _get_symbolic_evaulation_function(self, lambda_function: EvalType(tf.float32)) -> EvalType(tf.float32) | EvalType(bool):
 
         def _evaluation(trainable_variables: trainableVars) -> Union[bool, tf.float32]:
-            lambda_input: dict = self._parse_trainable_variables(trainable_variables, arguments)
+            lambda_input: dict = self._parse_trainable_variables(trainable_variables)
             return lambda_function(**lambda_input)
         
         return _evaluation
 
     def _set_parameter_relationship(self, relationship_expression: str) -> None:
-        sympy_expression, lambda_function, arguments = self._lambdify_parse_expression(relationship_expression, self.symbols)
+        sympy_expression, lambda_function = self._lambdify_parse_expression(relationship_expression, self.symbols)
 
-        _boolean_evaluation: EvalType(bool) = self._get_symbolic_evaulation_function(lambda_function, arguments)
+        _boolean_evaluation: EvalType(bool) = self._get_symbolic_evaulation_function(lambda_function)
 
         difference_expression: sp.Expr = sympy_expression.lhs - sympy_expression.rhs
 
         def _conditional_loss_multiplier(trainable_variables: trainableVars) -> tf.float32:
-            input_args: dict = self._parse_trainable_variables(trainable_variables, arguments)
+            input_args: dict = self._parse_trainable_variables(trainable_variables)
             return tf.convert_to_tensor(float(difference_expression.subs(input_args))**2)
 
         self.parameter_relationships.append(ParameterRelationship(_boolean_evaluation, _conditional_loss_multiplier, sympy_expression))
         pass
 
     def _get_footprint_function(self, expression: str) -> EvalType(tf.float32):
-        _, lambda_function, arguments = self._lambdify_parse_expression(expression, self.symbols)
-        return self._get_symbolic_evaulation_function(lambda_function, arguments)
+        _, lambda_function = self._lambdify_parse_expression(expression, self.symbols)
+        return self._get_symbolic_evaulation_function(lambda_function)
 
     def _get_response_funtion(self, expression: str, input_symbol: str) -> EvalType(tf.float32):
-        _, lambda_function, arguments = self._lambdify_parse_expression(expression, self.symbols+(sp.symbols(input_symbol),))
+        _, lambda_function = self._lambdify_parse_expression(expression, self.symbols+(sp.symbols(input_symbol),))
 
         def _get_response(trainable_variables: trainableVars, sensor_input: tf.Tensor) -> tf.Tensor:
-            lambda_input: dict = self._parse_trainable_variables(trainable_variables, arguments)
+            lambda_input: dict = self._parse_trainable_variables(trainable_variables)
             lambda_input[self.sensor_profile.input_symbol] = sensor_input
             return lambda_function(**lambda_input)
         return _get_response
