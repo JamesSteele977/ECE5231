@@ -104,7 +104,7 @@ class Optim(tf.Module, Solution):
             dtype=tf.float32
         )
         mean_squared_error: tf.float32 = tf.reduce_mean(tf.square(
-            response - (self.sensor_input * self._get_state_variable(StateVariable.SENSITIVITY) + response[0])
+            response - (((self.sensor_input-self.sensor_input[0]) * self._get_state_variable(StateVariable.SENSITIVITY)) + response[0])
         )/(self.sensor_input[-1] - self.sensor_input[0]))
         self._set_state_variable(StateVariable.MEAN_SQUARED_ERROR, mean_squared_error.numpy())
         return mean_squared_error
