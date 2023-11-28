@@ -13,6 +13,7 @@ class StateVariable(Enum):
     SENSITIVITY_LOSS_WEIGHT = auto()
     MEAN_SQUARED_ERROR_LOSS_WEIGHT = auto()
     FOOTPRINT_LOSS_WEIGHT = auto()
+    CONSTRAINT_PENALTY = auto()
     RESPONSE = auto()
     
 class Solution():
@@ -25,7 +26,7 @@ class Solution():
         ) -> None:
         self.n_trainable_variables: int = n_trainable_variables
         self.state_variables: np.ndarray = np.empty(
-            (epochs, (n_trainable_variables * 2) + int((bandwidth[-1]-bandwidth[0]) * bandwidth_sampling_rate) + 8),
+            (epochs, (n_trainable_variables * 2) + int((bandwidth[-1]-bandwidth[0]) * bandwidth_sampling_rate) + 9),
             dtype=np.float32
         )
         self.epoch: int = 0
@@ -60,8 +61,10 @@ class Solution():
                 query_slice: slice = np.s_[loss_variables_starting_index + 6]
             case StateVariable.FOOTPRINT_LOSS_WEIGHT:
                 query_slice: slice = np.s_[loss_variables_starting_index + 7]
+            case StateVariable.CONSTRAINT_PENALTY:
+                query_slice: slice = np.s_[loss_variables_starting_index + 8]
             case StateVariable.RESPONSE:
-                query_slice: slice = np.s_[loss_variables_starting_index + 8:]
+                query_slice: slice = np.s_[loss_variables_starting_index + 9:]
         match all_epochs:
             case True:
                 epoch_slice: slice = np.s_[:]
