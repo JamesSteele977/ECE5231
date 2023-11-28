@@ -17,6 +17,15 @@
             "program": "./tests/optim_test.py",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+
+        {
+            "name": "TEST-sym_to_tf",
+            "type": "python",
+            "request": "launch",
+            "program": "./tests/string_to_tf_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true 
         }
     ]
 }

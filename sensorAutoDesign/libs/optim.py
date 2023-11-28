@@ -168,8 +168,8 @@ class Optim(tf.Module, Solution):
         pass
 
     # Utility
-    def _dereference_tf_tuple(self, trainable_variables: Tuple[tf.Variable, ...] | Tuple[tf.Tensor, ...]) -> np.ndarray:
-        return np.array([variable.numpy() for variable in trainable_variables], dtype=np.float32)
+    def _dereference_tf_tuple(self, tf_tuple: Tuple[tf.Variable, ...] | Tuple[tf.Tensor, ...]) -> np.ndarray:
+        return np.array([variable.numpy() for variable in tf_tuple], dtype=np.float32)
 
     # Optimization Loop
     def _train_step(self) -> None:
