@@ -80,7 +80,7 @@ class Solution():
     
     def _set_state_variable(self, variable_type: StateVariable, value: stateVarType, epoch: int | None = None) -> None:
         self.state_variables[self._get_state_variable_slice(variable_type, False, epoch=epoch)]: stateVarType = value
-        print(f"{variable_type.name} set in epoch {self.epoch}:\t{value}")
+        # print(f"{variable_type.name} set in epoch {self.epoch}:\t{value}")
         pass
 
     def _set_epoch(self, epoch: int):

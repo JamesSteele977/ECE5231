@@ -2,13 +2,11 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 from enum import Enum
-from typing import Tuple
+from typing import Tuple, Callable
 from dataclasses import dataclass
 
 from .sensor import SensorProfile
 from .solution import Solution, StateVariable
-
-import inspect
 
 @dataclass(frozen=True)
 class OptimConfig:
@@ -34,7 +32,7 @@ class Optim(tf.Module, Solution):
         self.sensor_profile: SensorProfile = sensor_profile
 
         self.epoch: int = 0
-        self.n_constraints_violated: float = 0
+        self.constraint_penalty: float = 0
 
         for variable_name, bounds in self.sensor_profile.trainable_variables.items():
             self._set_trainable_variable(variable_name, bounds)
@@ -119,7 +117,7 @@ class Optim(tf.Module, Solution):
         return sensitivity
 
     def _get_loss(self) -> tf.float32:
-        self._set_n_constraints_violated()
+        self._set_constraint_penalty()
         self._set_state_variable(
             StateVariable.RESPONSE, 
             self.sensor_profile._get_response(self.trainable_variables, self.sensor_input).numpy()
@@ -132,20 +130,21 @@ class Optim(tf.Module, Solution):
         + self._get_mean_squared_error() * self._get_state_variable(StateVariable.MEAN_SQUARED_ERROR_LOSS_WEIGHT)\
         + footprint * self._get_state_variable(StateVariable.FOOTPRINT_LOSS_WEIGHT)
 
-        loss: tf.float32 = unscaled_loss + (self.n_constraints_violated * tf.abs(unscaled_loss))
+        loss: tf.float32 = unscaled_loss + (self.constraint_penalty * tf.abs(unscaled_loss))
         self._set_state_variable(StateVariable.LOSS, loss.numpy())
         return loss
 
     # Constrained Optimization
-    def _set_n_constraints_violated(self) -> None:
-        self.n_constraints_violated: float = 1
+    def _set_constraint_penalty(self) -> None:
+        self.constraint_penalty: float = 1
         any_constraints_violated: bool = False
         for relationship in self.sensor_profile.parameter_relationships:
             if not relationship.boolean_evaluation(self.trainable_variables):
-                self.n_constraints_violated *= 1 + relationship.conditional_loss_multiplier(self.trainable_variables)
+                self.constraint_penalty *= 1 + relationship.conditional_loss_multiplier(self.trainable_variables)
                 any_constraints_violated: bool = True
         if not any_constraints_violated:
-            self.n_constraints_violated: float = 0
+            self.constraint_penalty: float = 0
+        self._set_state_variable(StateVariable.CONSTRAINT_PENALTY, self.constraint_penalty)
         pass
             
     def _clip_trainable_variables_to_boundaries(self) -> None:
@@ -169,7 +168,8 @@ class Optim(tf.Module, Solution):
 
     # Utility
     def _dereference_tf_tuple(self, tf_tuple: Tuple[tf.Variable, ...] | Tuple[tf.Tensor, ...]) -> np.ndarray:
-        return np.array([variable.numpy() for variable in tf_tuple], dtype=np.float32)
+        dereference: Callable[[tf.Variable], np.float32] = lambda x: x.numpy() if not x is None else 0
+        return np.array([dereference(variable) for variable in tf_tuple], dtype=np.float32)
 
     # Optimization Loop
     def _train_step(self) -> None:
@@ -184,7 +184,6 @@ class Optim(tf.Module, Solution):
         self._clip_trainable_variables_to_boundaries()
         if self.epoch != self.optim_config.epochs-1:
             self._update_loss_weights()
-        print("CONSTRAINTS ", self.n_constraints_violated)
         pass
 
     def __call__(self) -> None:

@@ -1,7 +1,7 @@
 import cmd, os, argparse, json
 from typing import IO
 from .sensor import Sensor
-from .optim import Optim, Solve
+from .optim import Optim, Solution
 import libs.proc as proc
 from enum import Enum
 from dataclasses import dataclass
@@ -16,6 +16,7 @@ class ShellPath(Enum):
 
 @dataclass
 class ShellSettings:
+    None
     
 
 class ShellFn():
