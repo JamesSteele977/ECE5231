@@ -17,6 +17,65 @@ class StateVariable(Enum):
     RESPONSE = auto()
     
 class Solution():
+    """
+    Solution object, for storage of and operation on optimization process data, such as
+    gradients, loss, loss components, response function, etc.
+
+    Attributes
+    ----------
+    - n_trainable_varialbes (int): Number of design parameters in specified design
+    - state_variables (np.ndarray): Numpy array of size (n_epochs, 2*n_tvars + 
+    response_function_size + 9). Stores full summary of optimizer state for each epoch.
+    - epoch (int): Current epoch in optimization loop
+
+    Methods
+    -------
+    __init__():
+        parameters:
+            n_trainable_varialbes (int): Number of design parameters in specified design
+            bandwidth (Tuple[float, float]): Input range for sensor response
+            bandwidth_sampling_rate (float): Sampling rate for calculation of response
+            function
+            epochs (int): Total number of training epochs
+        returns:
+            self (Solution)
+    
+    _get_state_variable_slice(): Returns proper index for target attribute in state_variables
+    array
+        parameters:
+            variable_type (StateVariable): Target solution attribute
+            all_epochs (bool): Set True for full slice of state_variables across all epochs
+            epoch (int | None): Optional. For retrieval of data from specific epoch
+        returns:
+            state_variables_slice (slice): Index of target data
+    
+    _get_state_variable(): Retrieves target data from state_variables array
+        parameters: 
+            variable_type (StateVariable): Target solution attribute
+            all_epochs (bool): Set True for full slice of state_variables across all epochs
+                default: False
+            epoch (int | None): Optional. For retrieval of data from specific epoch
+                default: None
+        returns:
+            state_variable (np.ndarray | float): Target data from state_variables
+    
+    _set_state_variable(): Sets target data in state_variables array
+        parameters:
+            variable_type (StateVariable): Target solution attribute
+            value (stateVarType): Data to store as state variable
+            epoch (int | None): Optional. For assignation of data in specific epoch
+                default: None
+        returns:
+            [none]
+    
+    _set_epoch(): Sets current epoch in optimization loop. For Use in get/set state variable
+    functions
+        parameters:
+            epoch (int): Current epoch
+        returns:
+            [none]
+
+    """
     def __init__(
             self,
             n_trainable_variables: int,
@@ -32,15 +91,7 @@ class Solution():
         self.epoch: int = 0
         pass
 
-    def _state_variable_argument_check(self, variable_type: StateVariable) -> None:
-        if (self.epoch < 0) or (self.epoch > self.state_variables.shape[0]):
-            raise IndexError(f"Cannot get state variable from epoch {self.epoch}: out of range")
-        if not isinstance(variable_type, StateVariable):
-            raise TypeError(f"Argument 'variable_type' must be an instance of type StateVariable")
-        pass
-
     def _get_state_variable_slice(self, variable_type: StateVariable, all_epochs: bool, epoch: int | None) -> slice:
-        self._state_variable_argument_check(variable_type)
         loss_variables_starting_index: int = 2 * self.n_trainable_variables
         match variable_type:
             case StateVariable.GRADIENTS:
@@ -80,7 +131,6 @@ class Solution():
     
     def _set_state_variable(self, variable_type: StateVariable, value: stateVarType, epoch: int | None = None) -> None:
         self.state_variables[self._get_state_variable_slice(variable_type, False, epoch=epoch)]: stateVarType = value
-        # print(f"{variable_type.name} set in epoch {self.epoch}:\t{value}")
         pass
 
     def _set_epoch(self, epoch: int):
