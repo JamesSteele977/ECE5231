@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+
 from enum import Enum
 from typing import Tuple, Callable
 from dataclasses import dataclass
@@ -25,6 +26,126 @@ class TfOptimizer(Enum):
     STOCHASTIC_GRADIENT_DESCENT: str = 'sgd'
 
 class Optim(tf.Module, Solution):
+    """
+    Optimizer object, instantiated for each optimization of some sensor design, specified via
+    SensorProfile, according to some optimizer configuration, specified via OptimConfig
+
+    --Subclass of tf.Module--
+    --Subclass of Solution--
+
+    Attributes
+    ----------
+    - optim_config (OptimConfig): Configuration dataclass for optimization settings
+    - sensor_profile (SensorProfile): Configuration dataclass for sensor design
+    interface, created by a Sensor object
+    - epoch (int): Current epoch in optimization loop
+    - constraint_penalty (float): Loss scalar reflecting the fact and degree of contraint
+    violation for current trainable variables
+    - sensor_input (np.ndarray): Input array for sensor _get_response funtion, based on
+    bandwidth and sampling rate specifications
+    
+    Methods
+    -------
+    __init__():
+        parameters:
+            optim_config (OptimConfig): Configuration dataclass for optimization settings
+            sensor_profile (SensorProfile): Configuration dataclass for sensor design
+        returns:
+            self (Optim)
+    
+    _set_sensor_input(): Sets sensor_input attribute, informed by sensor_profile and optim_config
+    attributes
+        parameters:
+            [none]
+        returns:
+            [none]
+    
+    _set_optimizer(): Sets optimizer attribute, informed by optim_config attribute
+        parameters:
+            [none]
+        returns:
+            [none]
+    
+    _set_initial_loss_weights(): Sets initial values of sensitivity, mse, and footprint loss
+    weights in state_variables array attribute, informed by sensor optim_config attribute
+        parameters:
+            [none]
+        returns:
+            [none]
+    
+    _set_trainable_variable(): Initializes trainable variables for optimization, informed
+    by sensor_profile
+        parameters:
+            variable_name (str): Symbolic reference of variable, for interface with Sympy
+            expressions
+            bounds (Tuple[float, float]): Specification of absolute limits for parameter
+            variation
+        returns:
+            [none]
+    
+    _get_mean_squared_error(): Calculates mse for IO curve of current sensor design (difference
+    between idealized IO curve, based on sensitivity and bias, and actual, potentially nonlinear,
+    sensor response). Informed by state_variables array attribute. 
+        parameters:
+            [none]
+        returns:
+            mean_squared_error (tf.float32): Calculated mse
+    
+    _get_sensitivity(): Calculates sensitivity for IO curve of current sensor design (based on
+    slope between minimum and maximum bandwidth datapoints). Informed by state_variables array
+    attribute
+        parameters:
+            [none]
+        returns:
+            sensitivity (tf.float32): Calculated sensitivity
+    
+    _get_loss(): Calculates loss of current design iteration, as a weighted combination of 
+    sensitivity, footprint, and mse (nonlinearity), with a conditional multiplier based on
+    design constraints. Informed by trainable_variables attribute
+        parameters:
+            [none]
+        returns:
+            loss (tf.float32): Calculated loss
+    
+    _set_constraint_penalty(): Calculates conditional constraint loss multiplier, as the
+    cumulative product of the squared errors from specified constraints--zero where no
+    constraints are violated.  Informed by sensor_profile attribute
+        parameters:
+            [none]
+        returns:
+            [none]
+    
+    _clip_trainable_variables_to_boundaries(): Clips trainables variables to stay within
+    hard variable bounds defined in sensor_profile
+        parameters:
+            [none]
+        returns:
+            [none]
+
+    _update_loss_weights() #############################################
+
+    _dereference_tf_tuple(): Modifies gradient and trainable variable inputs for addition
+    to state_variables array attribute
+        parameters:
+            tf_tuple (Tuple[tf.Variable, ...] | Tuple[tf.Tensor, ...]): Tuple of tensorflow
+            objects
+        returns:
+            dereferenced_array (np.ndarray): Numpy array form of input
+    
+    _train_step(): Performs single optimization step: epoch. Consists of loss and gradient
+    calculation, variable clipping, and updating loss weights
+        parameters:
+            [none]
+        returns:
+            [none]
+    
+    __call__(): Performs full optimization process on sensor design. Result stored in
+    state_variables array (attribute of Solution object)
+        parameters:
+            [none]
+        returns:
+            [none]   
+    """
     def __init__(self, optim_config: OptimConfig, sensor_profile: SensorProfile) -> None:
         super().__init__()
 
@@ -156,7 +277,7 @@ class Optim(tf.Module, Solution):
             ))
         pass
 
-    # Adaptive Loss Weights
+    # Update Loss Weights
     def _update_loss_weights(self) -> None:
         for variable_type in (
                 StateVariable.MEAN_SQUARED_ERROR_LOSS_WEIGHT,
