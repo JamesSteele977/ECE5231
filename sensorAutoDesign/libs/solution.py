@@ -1,4 +1,5 @@
 import numpy as np
+
 from enum import Enum, auto
 from typing import Tuple
 

@@ -1,10 +1,10 @@
 import numpy as np
 import tensorflow as tf
 import sympy as sp
+
 from dataclasses import dataclass, fields
 from typing import Tuple, Dict, Callable, Union
 from enum import Enum
-import inspect
 
 tfReturn: type = Union[tf.float32, tf.Tensor]
 trainableVars: type = Tuple[tf.Variable, ...]
@@ -45,6 +45,75 @@ class SensorDescription(Enum):
     RESPONSE: str = 'response'
 
 class Sensor():
+    """
+    For converting string user input into functions/variables in sensor_profile, for
+    implementation in Optim object
+
+    Attributes
+    ----------
+    - shell_description (dict): Summary data for presentation in shell UI 
+    - parameter_relationships (Tuple[ParameterRelationship, ...]): Tuple of
+    ParameterRelationship objects, for use in constraint enforcement in Optim object
+    - _get_footprint (EvalType(tf.float32)): Tensorflow-implemented footprint function
+    - _get_response (EvalType(tfReturn)): Tensorflow-implemented response function
+    - sensor_profile (SensorProfile): Configuration containing necessary data
+    to be passed into Optim object
+    
+    Methods
+    -------
+    __init__():
+        parameters:
+            sensor_config (SensorConfig): Configuration object created in UI
+        returns:
+            self (Sensor)
+
+    _tf_index_to_name(): Converts tensorflow trainable variable name format into
+    standard format (removes ':index')
+        parameters:
+            tf_name (str): Unformatted variable name
+        returns:
+            name (str): Reformatted variable name
+    
+    _trainable_variables_to_dict(): Parses tuple of tensorflow trainable variables
+    into dictionary for use by UI-defined tensorflow functions
+        parameters:
+            trainable_variables (trainableVars): Unformatted trainable variables
+        returns:
+            trainable_varialbes_dict (dict): Dictionary format of tvars
+    
+    _get_tensorflow_function(): Parses sympy Expr object into tensorflow operations,
+    for gradient tracking in optimization loop
+        parameters:
+            expr (sp.Expr): Sympy expression form of function
+        returns:
+            tensorflow_function (EvalType(tfReturn)): Tensorflow form of function
+    
+    _set_parameter_relationship(): Parses string expression of parameter relationship
+    into a ParameterRelationship object, consisting of a boolean evaluation of the
+    relationship, a calculation of mean squared error from constraint satisfaction,
+    and a sympy expression
+        parameters:
+            string_expression (str): String format of parameter relationship
+        returns:
+            [none]
+    
+    _get_footprint_function(): Parses string expression of footprint calculation
+    into a tensorflow function
+        parameters:
+            string_expression (str): String format of footprint calculation
+        returns:
+            _get_footprint (EvalType(tf.float32)): Tensorflow function for footprint
+            calculation
+    
+    _get_response_function(): Parses string expression of sensor input response 
+    calculation into a tensorflow function
+        parameters:
+            string_expression (str): String format of response calculation
+        returns:
+            _get_response (EvalType(tf.float32)): Tensorflow function for response
+            calculation
+
+    """
     def __init__(self, sensor_config: SensorConfig) -> None:
         self.shell_descritpion: Dict[SensorDescription, {f.type for f in fields(SensorConfig)}] = {
             SensorDescription.TRAINABLE_VARIABLES: sensor_config.trainable_variables,
@@ -55,7 +124,6 @@ class Sensor():
             SensorDescription.RESPONSE: sensor_config.response
         }
 
-        self.symbols: spSymbols = sp.symbols(tuple(sensor_config.trainable_variables.keys()))
         self.parameter_relationships: list = []
         for relationship in sensor_config.parameter_relationships:
             self._set_parameter_relationship(relationship)
@@ -83,7 +151,6 @@ class Sensor():
         return {self._tf_index_to_name(variable.name):variable for variable in trainable_variables}
     
     def _get_tensorflow_function(self, expr: sp.Expr) -> EvalType(tfReturn):
-        """ Convert a sympy expression to a tensorflow function. """
         def evaluate_sympy_expr(expr: sp.Expr, trainable_variables_dict: dict) -> tfReturn:
             """ Recursively evaluate a sympy expression with TensorFlow operations. """
             if isinstance(expr, sp.Symbol):
@@ -109,30 +176,21 @@ class Sensor():
             elif isinstance(expr, sp.exp):
                 return tf.exp(evaluate_sympy_expr(expr.args[0], trainable_variables_dict))
             elif isinstance(expr, sp.sin):
-                # Evaluate sin operation
                 return tf.sin(evaluate_sympy_expr(expr.args[0], trainable_variables_dict))
             elif isinstance(expr, sp.cos):
-                # Evaluate cos operation
                 return tf.cos(evaluate_sympy_expr(expr.args[0], trainable_variables_dict))
-            # Add handling for more sympy operations as needed
             else:
                 raise NotImplementedError(f"Operation {type(expr)} not implemented")
 
         def tensorflow_function(trainable_variables_dict: dict) -> tfReturn:
-            """ Evaluate the expression using TensorFlow operations. """
             return evaluate_sympy_expr(expr, trainable_variables_dict)
 
         return tensorflow_function
     
-    def _parse_str_to_expr_function(self, string_expression: str) -> Tuple[EvalType(tf.float32), Tuple[str, ...]]:
-        sympy_expression: sp.Expr = sp.sympify(string_expression)
-        tensorflow_function: EvalType(tfReturn) = self._get_tensorflow_function(sympy_expression)
-        return sympy_expression, tensorflow_function
-
     """ Main Parsing Functions """
     def _set_parameter_relationship(self, string_expression: str) -> None:
         # Boolean
-        boolean_sympy_expression, _ = self._parse_str_to_expr_function(string_expression)
+        boolean_sympy_expression: sp.Expr = sp.sympify(string_expression)
         def _boolean_evaluation(trainable_variables: trainableVars) -> bool:
             trainable_variables_dict: dict = self._trainable_variables_to_dict(trainable_variables)
             return boolean_sympy_expression.subs(trainable_variables_dict)
@@ -148,7 +206,7 @@ class Sensor():
         pass
 
     def _get_footprint_function(self, string_expression: str) -> EvalType(tf.float32):
-        _, tensorflow_function = self._parse_str_to_expr_function(string_expression)
+        tensorflow_function: EvalType(tf.float32) = self._get_tensorflow_function(sp.sympify(string_expression))
 
         def _get_footprint(trainable_variables: trainableVars) -> tf.float32:
             trainable_variables_dict: dict = self._trainable_variables_to_dict(trainable_variables)
@@ -156,8 +214,8 @@ class Sensor():
         
         return _get_footprint
     
-    def _get_response_function(self, expression: str) -> EvalType(tfReturn):
-        _, tensorflow_function = self._parse_str_to_expr_function(expression)
+    def _get_response_function(self, string_expression: str) -> EvalType(tfReturn):
+        tensorflow_function: EvalType(tf.float32) = self._get_tensorflow_function(sp.sympify(string_expression))
 
         def _get_response(trainable_variables: trainableVars, sensor_input: tfReturn) -> tfReturn:
             trainable_variable_dict: dict = self._trainable_variables_to_dict(trainable_variables)
