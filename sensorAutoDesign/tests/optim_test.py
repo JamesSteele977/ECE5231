@@ -45,3 +45,4 @@ if __name__ == '__main__':
     plt.plot(tvars[:,0])
     plt.plot(tvars[:,1])
     plt.show()
+    

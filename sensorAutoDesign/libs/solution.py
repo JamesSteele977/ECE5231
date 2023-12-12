@@ -1,7 +1,8 @@
 import numpy as np
 
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Tuple
+from typing import Tuple, List
 
 stateVarType: type = np.float32 | np.ndarray
 class StateVariable(Enum):
@@ -16,7 +17,22 @@ class StateVariable(Enum):
     FOOTPRINT_LOSS_WEIGHT = auto()
     CONSTRAINT_PENALTY = auto()
     RESPONSE = auto()
-    
+
+@dataclass(frozen=True)
+class SolutionSave():
+    variable_names: List[str]
+    trainable_variables: List[List[float]]
+    gradients: List[float]
+    loss: List[float]
+    sensitivity: List[float]
+    mean_squared_error: List[float]
+    footprint: List[float]
+    sensitivity_loss_weight: List[float]
+    mean_squared_error_loss_weight: List[float]
+    footprint_loss_weight: List[float]
+    constraint_penalty: List[float]
+    response: List[List[float]]
+
 class Solution():
     """
     Solution object, for storage of and operation on optimization process data, such as

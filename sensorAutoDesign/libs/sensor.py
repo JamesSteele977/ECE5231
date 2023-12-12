@@ -36,14 +36,6 @@ class SensorProfile(SensorBasicInfo):
     _get_footprint: EvalType(np.float32)
     _get_response: EvalType(np.float32)
 
-class SensorDescription(Enum):
-    TRAINABLE_VARIABLES: str = 'trainable_variables'
-    BANDWIDTH: str = 'bandwidth'
-    PARAMETER_RELATIONSHIPS: str = 'parameter_relationships'
-    FOOTPRINT: str = 'footprint'
-    INPUT_SYMBOL: str = 'input_symbol'
-    RESPONSE: str = 'response'
-
 class Sensor():
     """
     For converting string user input into functions/variables in sensor_profile, for
@@ -115,15 +107,6 @@ class Sensor():
 
     """
     def __init__(self, sensor_config: SensorConfig) -> None:
-        self.shell_descritpion: Dict[SensorDescription, {f.type for f in fields(SensorConfig)}] = {
-            SensorDescription.TRAINABLE_VARIABLES: sensor_config.trainable_variables,
-            SensorDescription.BANDWIDTH: sensor_config.bandwidth,
-            SensorDescription.PARAMETER_RELATIONSHIPS: sensor_config.parameter_relationships,
-            SensorDescription.FOOTPRINT: sensor_config.footprint,
-            SensorDescription.INPUT_SYMBOL: sensor_config.input_symbol,
-            SensorDescription.RESPONSE: sensor_config.response
-        }
-
         self.parameter_relationships: list = []
         for relationship in sensor_config.parameter_relationships:
             self._set_parameter_relationship(relationship)
