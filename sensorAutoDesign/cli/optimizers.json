@@ -1,1 +1,12 @@
-{}
+{
+    "OPTIMIZER_1": {
+        "optimizer": "ADAM",
+        "epochs": 10,
+        "bandwidth_sampling_rate": 100.0,
+        "relationship_sampling_rate": 100.0,
+        "learning_rate": 0.01,
+        "initial_sensitivity_loss_weight": 1.0,
+        "initial_mean_squared_error_loss_weight": 1.0,
+        "initial_footprint_loss_weight": 1.0
+    }
+}

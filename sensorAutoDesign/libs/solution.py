@@ -1,10 +1,10 @@
-import numpy as np
+from numpy import ndarray, float32, empty, s_
 
-from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Tuple, List
+from typing import Tuple
 
-stateVarType: type = np.float32 | np.ndarray
+stateVarType: type = float32 | ndarray
+
 class StateVariable(Enum):
     GRADIENTS = auto()
     TRAINABLE_VARIABLES = auto()
@@ -17,21 +17,6 @@ class StateVariable(Enum):
     FOOTPRINT_LOSS_WEIGHT = auto()
     CONSTRAINT_PENALTY = auto()
     RESPONSE = auto()
-
-@dataclass(frozen=True)
-class SolutionSave():
-    variable_names: List[str]
-    trainable_variables: List[List[float]]
-    gradients: List[float]
-    loss: List[float]
-    sensitivity: List[float]
-    mean_squared_error: List[float]
-    footprint: List[float]
-    sensitivity_loss_weight: List[float]
-    mean_squared_error_loss_weight: List[float]
-    footprint_loss_weight: List[float]
-    constraint_penalty: List[float]
-    response: List[List[float]]
 
 class Solution():
     """
@@ -101,9 +86,9 @@ class Solution():
             epochs: int
         ) -> None:
         self.n_trainable_variables: int = n_trainable_variables
-        self.state_variables: np.ndarray = np.empty(
+        self.state_variables: ndarray = empty(
             (epochs, (n_trainable_variables * 2) + int((bandwidth[-1]-bandwidth[0]) * bandwidth_sampling_rate) + 9),
-            dtype=np.float32
+            dtype=float32
         )
         self.epoch: int = 0
         pass
@@ -112,35 +97,35 @@ class Solution():
         loss_variables_starting_index: int = 2 * self.n_trainable_variables
         match variable_type:
             case StateVariable.GRADIENTS:
-                query_slice: slice = np.s_[0:self.n_trainable_variables]
+                query_slice: slice = s_[0:self.n_trainable_variables]
             case StateVariable.TRAINABLE_VARIABLES:
-                query_slice: slice = np.s_[self.n_trainable_variables:loss_variables_starting_index]
+                query_slice: slice = s_[self.n_trainable_variables:loss_variables_starting_index]
             case StateVariable.LOSS:
-                query_slice: slice = np.s_[loss_variables_starting_index + 1]
+                query_slice: slice = s_[loss_variables_starting_index + 1]
             case StateVariable.SENSITIVITY:
-                query_slice: slice = np.s_[loss_variables_starting_index + 2]
+                query_slice: slice = s_[loss_variables_starting_index + 2]
             case StateVariable.MEAN_SQUARED_ERROR:
-                query_slice: slice = np.s_[loss_variables_starting_index + 3]
+                query_slice: slice = s_[loss_variables_starting_index + 3]
             case StateVariable.FOOTPRINT:
-                query_slice: slice = np.s_[loss_variables_starting_index + 4]
+                query_slice: slice = s_[loss_variables_starting_index + 4]
             case StateVariable.SENSITIVITY_LOSS_WEIGHT:
-                query_slice: slice = np.s_[loss_variables_starting_index + 5]
+                query_slice: slice = s_[loss_variables_starting_index + 5]
             case StateVariable.MEAN_SQUARED_ERROR_LOSS_WEIGHT:
-                query_slice: slice = np.s_[loss_variables_starting_index + 6]
+                query_slice: slice = s_[loss_variables_starting_index + 6]
             case StateVariable.FOOTPRINT_LOSS_WEIGHT:
-                query_slice: slice = np.s_[loss_variables_starting_index + 7]
+                query_slice: slice = s_[loss_variables_starting_index + 7]
             case StateVariable.CONSTRAINT_PENALTY:
-                query_slice: slice = np.s_[loss_variables_starting_index + 8]
+                query_slice: slice = s_[loss_variables_starting_index + 8]
             case StateVariable.RESPONSE:
-                query_slice: slice = np.s_[loss_variables_starting_index + 9:]
+                query_slice: slice = s_[loss_variables_starting_index + 9:]
         match all_epochs:
             case True:
-                epoch_slice: slice = np.s_[:]
+                epoch_slice: slice = s_[:]
             case False:
                 if epoch is None:
-                    epoch_slice: slice = np.s_[self.epoch]
+                    epoch_slice: slice = s_[self.epoch]
                 else:
-                    epoch_slice: slice = np.s_[epoch]
+                    epoch_slice: slice = s_[epoch]
         return (epoch_slice, query_slice)
 
     def _get_state_variable(self, variable_type: StateVariable, all_epochs: bool = False, epoch: int | None = None) -> stateVarType:    

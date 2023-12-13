@@ -4,22 +4,10 @@ from tqdm import tqdm
 
 from enum import Enum
 from typing import Tuple, Callable
-from dataclasses import dataclass
 
 from .sensor import SensorProfile
 from .solution import Solution, StateVariable
-
-@dataclass(frozen=True)
-class OptimConfig:
-    optimizer: str
-    epochs: int
-    bandwidth_sampling_rate: float
-    relationship_sampling_rate: float
-    learning_rate: float
-
-    initial_sensitivity_loss_weight: float
-    initial_mean_squared_error_loss_weight: float
-    initial_footprint_loss_weight: float
+from .config import OptimConfig
 
 class TfOptimizer(Enum):
     ADAM: str = 'adam'
@@ -122,8 +110,6 @@ class Optim(tf.Module, Solution):
         returns:
             [none]
 
-    _update_loss_weights() #############################################
-
     _dereference_tf_tuple(): Modifies gradient and trainable variable inputs for addition
     to state_variables array attribute
         parameters:
@@ -184,7 +170,7 @@ class Optim(tf.Module, Solution):
         pass
 
     def _set_optimizer(self) -> None:
-        match self.optim_config.optimizer:
+        match self.optim_config.optimizer.lower():
             case TfOptimizer.ADAM.value:
                 self.optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=self.optim_config.learning_rate)
             case TfOptimizer.STOCHASTIC_GRADIENT_DESCENT.value:
@@ -279,6 +265,12 @@ class Optim(tf.Module, Solution):
 
     # Update Loss Weights
     def _update_loss_weights(self) -> None:
+        """
+        NOTE: In current version (last update to this doctring: v1.0), this function
+        only propegrates initial loss weights forward. In future versions, this may
+        be used to take user input, allowing for dynamic optimization (change of loss
+        function during optimization). 
+        """
         for variable_type in (
                 StateVariable.MEAN_SQUARED_ERROR_LOSS_WEIGHT,
                 StateVariable.FOOTPRINT_LOSS_WEIGHT,

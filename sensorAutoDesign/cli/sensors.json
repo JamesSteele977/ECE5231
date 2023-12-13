@@ -1,1 +1,18 @@
-{}
+{
+    "SENSOR_10": {
+        "trainable_variables": {
+            "a": [
+                1,
+                2
+            ]
+        },
+        "bandwidth": [
+            0,
+            10
+        ],
+        "input_symbol": "inp",
+        "parameter_relationships": [],
+        "footprint": "a/3",
+        "response": "inp**a"
+    }
+}

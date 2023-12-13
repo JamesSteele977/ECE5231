@@ -2,28 +2,19 @@ import numpy as np
 import tensorflow as tf
 import sympy as sp
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from typing import Tuple, Dict, Callable, Union
-from enum import Enum
 
+from .config import SensorConfig
+
+""" CUSTOM TYPES"""
 tfReturn: type = Union[tf.float32, tf.Tensor]
 trainableVars: type = Tuple[tf.Variable, ...]
 spSymbols: type = Tuple[sp.Symbol, ...]
 def EvalType(returns: type) -> type:
     return Callable[[trainableVars], returns]
 
-@dataclass(frozen=True)
-class SensorBasicInfo():
-    trainable_variables: Dict[str, Tuple[float, float]]
-    bandwidth: Tuple[float, float]
-    input_symbol: str
-
-@dataclass(frozen=True)
-class SensorConfig(SensorBasicInfo):
-    parameter_relationships: Tuple[str, ...]
-    footprint: str
-    response: str
-
+""" DATACLASSES """
 @dataclass(frozen=True)
 class ParameterRelationship():
     boolean_evaluation: EvalType(bool)
@@ -31,7 +22,10 @@ class ParameterRelationship():
     sympy_expression: sp.Expr
 
 @dataclass(frozen=True)
-class SensorProfile(SensorBasicInfo):
+class SensorProfile():
+    trainable_variables: Dict[str, Tuple[float, float]]
+    bandwidth: Tuple[float, float]
+    input_symbol: str
     parameter_relationships: Tuple[ParameterRelationship, ...]
     _get_footprint: EvalType(np.float32)
     _get_response: EvalType(np.float32)
