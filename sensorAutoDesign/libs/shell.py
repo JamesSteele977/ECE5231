@@ -1,4 +1,4 @@
-import cmd, os, argparse
+import cmd, argparse
 from .shellfn import ShellFn
 from typing import IO
 
@@ -61,6 +61,8 @@ class UI(cmd.Cmd, ShellFn):
             print(e)
         except SystemExit:
             pass
+        except:
+            self._general_exception_()
         pass
     
     def do_delete(self, arg):
@@ -81,6 +83,8 @@ class UI(cmd.Cmd, ShellFn):
             print(e)
         except SystemExit:
             pass
+        except:
+            self._general_exception_()
         pass
 
     def do_configure(self, arg):
@@ -101,6 +105,8 @@ class UI(cmd.Cmd, ShellFn):
             print(e)
         except SystemExit:
             pass
+        except:
+            self._general_exception_()
         pass
     
     def do_fit(self, arg):
@@ -121,6 +127,8 @@ class UI(cmd.Cmd, ShellFn):
             print(str(e))
         except SystemExit:
             pass
+        except:
+            self._general_exception_()
         pass
 
     def do_display(self, arg):
@@ -145,4 +153,6 @@ class UI(cmd.Cmd, ShellFn):
             print(str(e))
         except SystemExit:
             pass
+        except:
+            self._general_exception_()
         pass

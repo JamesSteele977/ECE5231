@@ -284,13 +284,19 @@ class Optim(tf.Module, Solution):
         dereference: Callable[[tf.Variable], np.float32] = lambda x: x.numpy() if not x is None else 0
         return np.array([dereference(variable) for variable in tf_tuple], dtype=np.float32)
 
+    def _normalize_gradients(self, gradient: Tuple[tf.Tensor | None, ...]) -> Tuple[tf.Tensor, ...]:
+        gradient: Tuple[tf.Tensor, ...] = tuple([0 if grad is None else grad for grad in gradient])
+        return tf.clip_by_value(gradient, clip_value_min=-1e3, clip_value_max=1e3)
+
+
     # Optimization Loop
     def _train_step(self) -> None:
         self._set_state_variable(StateVariable.TRAINABLE_VARIABLES, self._dereference_tf_tuple(self.trainable_variables))
         with tf.GradientTape() as tape:
             loss: tf.float32 = self._get_loss()
         
-        gradient: Tuple[tf.Tensor, ...] = tape.gradient(loss, self.trainable_variables)
+        gradient: Tuple[tf.Tensor | None, ...] = tape.gradient(loss, self.trainable_variables)
+        gradient: Tuple[tf.Tensor, ...] = self._normalize_gradients(gradient)
         self.optimizer.apply_gradients(zip(gradient, self.trainable_variables))
 
         self._set_state_variable(StateVariable.GRADIENTS, self._dereference_tf_tuple(gradient))

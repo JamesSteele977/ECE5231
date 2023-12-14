@@ -1,4 +1,4 @@
-import json, os
+import json, os, sys, traceback
 import matplotlib.pyplot as plt
 from numpy import linspace
 from matplotlib.cm import ScalarMappable
@@ -7,7 +7,7 @@ from matplotlib.colors import Normalize
 from .sensor import Sensor
 from .optim import Optim
 from .solution import Solution, StateVariable
-from .config import SensorConfig, OptimConfig, SolutionSave
+from .config import SensorConfig, OptimConfig, SolutionSave, solutionSaveVariableNamesKey
 
 from enum import Enum
 from dataclasses import dataclass, asdict, fields, Field
@@ -17,6 +17,8 @@ from typing import Dict, List, Tuple
 descEntrySpaces: int = 24
 hlineSpaceBuffer: int = 3
 jsonDumpIndent: int = 4
+
+nColorbarTicks: int = 10
 
 windowsOSName: str = 'nt'
 windowsClear: str = 'cls'
@@ -195,12 +197,14 @@ class ShellFn():
             os.system(f"nano {ShellPath.TEMP.value}")
             try:
                 with open(ShellPath.TEMP.value) as f:
-                    user_config: configType = config_format.from_json(f)
+                    user_config: dict = asdict(config_format.from_json(f.read()))
                 break
             except KeyError as e:
                 print(e)
+            except TypeError as e:
+                print(e)
     
-        self._save_object(kw, object_name, asdict(user_config))
+        self._save_object(kw, object_name, user_config)
         self._write(kw, self.saved_objects[kw])
         self._print_description_header(kw)
         self._print_description_line(object_name, user_config)
@@ -239,7 +243,7 @@ class ShellFn():
             print("WARNING: Invalid query. User must provide either --data arguments or --all flag.")
             return
         if print_final_epoch_solution:
-            self._print_final_epoch_solution()
+            self._print_final_epoch_solution(solution_name)
         if display_all:
             queried_vars: tuple = tuple([statevar.name for statevar in StateVariable])
 
@@ -252,8 +256,12 @@ class ShellFn():
     # _display_ sub
     def _print_final_epoch_solution(self, solution_name: str):
         print(self._recursively_format_obj_to_str({
-            variable_name:values[-1] for variable_name, values in self.saved_objects[Subobject.SOLUTION][solution_name.upper()][
-                self._get_dataclass_field_string(StateVariable, StateVariable.TRAINABLE_VARIABLES).lower()
+            variable_name:values[-1] for variable_name, values in self.saved_objects[
+                Subobject.SOLUTION
+            ][
+                solution_name.upper()
+            ][
+                StateVariable.TRAINABLE_VARIABLES.name.lower()
             ].items()
         }))
     
@@ -273,10 +281,10 @@ class ShellFn():
                         main_ax, legend = self._plot_trainable_variables(
                             main_ax, legend, 
                             solution_save[StateVariable.TRAINABLE_VARIABLES.name.lower()], 
-                            solution_save[self._get_dataclass_field_string(SolutionSave, SolutionSave.variable_names)]
+                            solution_save[solutionSaveVariableNamesKey]
                         )
                     case _:
-                        main_ax, legend = self._plot_main(main_ax, queried_var.upper(), solution_save[queried_var.lower()], legend)
+                        main_ax, legend = self._plot_main(main_ax, legend, queried_var.upper(), solution_save[queried_var.lower()])
 
         main_ax.legend(legend)
         plt.tight_layout()
@@ -297,7 +305,7 @@ class ShellFn():
         for i in range(epochs):
             response_ax.plot(response_data[i], color=colors[i])
 
-        plt.colorbar(ScalarMappable(Normalize(1, epochs), cmap), ax=response_ax, ticks=linspace(1, epochs, epochs))
+        plt.colorbar(ScalarMappable(Normalize(1, epochs), cmap), ax=response_ax, ticks=linspace(1, epochs, nColorbarTicks))
     
     def _plot_main(self, main_ax, legend: list, data_label: str, data: list) -> tuple:
         main_ax.plot(data)
@@ -330,7 +338,7 @@ class ShellFn():
             print(f"TypeError: {e}")
 
     def _write(self, kw: Subobject | ShellPath, data: dict) -> None:
-        self._check_rectify_path(kw)
+        self._check_rectify_path(kw.value)
         with open(kw.value, 'w') as f:
             json.dump(data, f, indent=jsonDumpIndent)
 
@@ -400,12 +408,6 @@ class ShellFn():
             dataclass_dict[field.name] = val
         return dataclass_dict
     
-    def _get_dataclass_field_string(self, dataclass: dataclass, target_field: Field) -> str | None:
-        for field in fields(dataclass):
-            if getattr(dataclass, field.name) is target_field:
-                return field.name
-        return
-
     ### OBJECT UI DESCRIPTION
     # table printing
     def _print_description_line(self, name: str, config: dict) -> None:
@@ -414,7 +416,6 @@ class ShellFn():
     def _print_description_header(self, kw: Subobject) -> None:
         if len(self.saved_objects[kw]) != 0:
             config: dataclass = self._match_subobject_to_config_dataclass(kw)
-            self._print_config_fields(config)
             print(f"{'Name'[:descEntrySpaces].ljust(descEntrySpaces)}|{'|'.join([field.name[:descEntrySpaces].ljust(descEntrySpaces) for field in fields(config)])}\n{'-'*(len(fields(config)) * (hlineSpaceBuffer + descEntrySpaces))}")
         else:
             print("< none >")
@@ -430,3 +431,13 @@ class ShellFn():
                 return ' '.join(f"{self._recursively_format_obj_to_str(key)}:{self._recursively_format_obj_to_str(label)}" for key, label in obj.items())
             case _:
                 return str(obj)
+            
+    ### ERROR HANDLING
+    def _general_exception_(self) -> None:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        print("Exception type:", exc_type)
+        print("Exception value:", exc_value)
+        traceback_details = traceback.format_tb(exc_traceback)
+        print("Detailed traceback:")
+        for line in traceback_details:
+            print(line)

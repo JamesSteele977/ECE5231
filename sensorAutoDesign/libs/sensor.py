@@ -143,7 +143,7 @@ class Sensor():
                 # Recursively evaluate multiply operation
                 result = evaluate_sympy_expr(expr.args[0], trainable_variables_dict)
                 for arg in expr.args[1:]:
-                    result *= evaluate_sympy_expr(arg, trainable_variables_dict)
+                    result = result * evaluate_sympy_expr(arg, trainable_variables_dict)
                 return result
             elif isinstance(expr, sp.Pow):
                 return tf.pow(

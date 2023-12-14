@@ -89,14 +89,13 @@ lower_bound and upper_bound are the numerical bounds for each variable.</p>
     "optimizer": "optimizer_name",
     "epochs": 10,
     "bandwidth_sampling_rate": 100.0,
-    "relationship_sampling_rate": 100.0,
     "learning_rate": 0.01,
     "initial_sensitivity_loss_weight": 1.0,
     "initial_mean_squared_error_loss_weight": 1.0,
     "initial_footprint_loss_weight": 1.0
 }
 ```
-<p>Current version (1.0) supports "ADAM" and "STOCHASTIC_GRADIENT_DESCENT" optimizers.</p>
+<p>Current version (1.0) supports "ADAM" and "SGD" optimizers.</p>
 
 ## Running an Optimization
 <p>Ensure you have a sensor and optimizer configured:</p>

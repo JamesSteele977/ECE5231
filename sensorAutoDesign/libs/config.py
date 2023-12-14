@@ -28,13 +28,14 @@ class SolutionSave():
     constraint_penalty: List[float]
     response: List[List[float]]
 
+solutionSaveVariableNamesKey: str = 'variable_names'
+
 @dataclass_json
 @dataclass(frozen=True)
 class OptimConfig:
     optimizer: str
     epochs: int
     bandwidth_sampling_rate: float
-    relationship_sampling_rate: float
     learning_rate: float
     initial_sensitivity_loss_weight: float
     initial_mean_squared_error_loss_weight: float
